@@ -1,3 +1,9 @@
 {
-  "framework": "nextjs"
+  "buildCommand": "npm install && cd apps/web && npx prisma generate && npm run build",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/$1" }
+  ]
 }
