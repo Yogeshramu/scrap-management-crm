@@ -14,11 +14,11 @@ export async function GET() {
       },
     });
 
-    const totalSpentToday = todayPurchases.reduce((sum, purchase) => sum + purchase.agreedPrice, 0);
+    const totalSpentToday = todayPurchases.reduce((sum: number, purchase) => sum + purchase.agreedPrice, 0);
     const vehiclesAcquired = todayPurchases.filter((purchase) => purchase.type === 'VEHICLE').length;
     const alloyWheelsToday = todayPurchases
       .filter((purchase) => purchase.type === 'VEHICLE')
-      .reduce((sum, purchase) => sum + (purchase.alloyWheelsCount || 0), 0);
+      .reduce((sum: number, purchase) => sum + (purchase.alloyWheelsCount || 0), 0);
     const logisticsRunsToday = todayPurchases.length;
 
     const vehicles = await prisma.vehicleInventory.findMany();

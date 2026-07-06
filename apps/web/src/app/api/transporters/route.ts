@@ -12,8 +12,8 @@ export async function GET() {
 
     const summary = companies.map((company) => {
       const totalTrips = company.trips.length;
-      const totalAmount = company.trips.reduce((sum, trip) => sum + (trip.transportTripFee || 0), 0);
-      const paidAmount = company.payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+      const totalAmount = company.trips.reduce((sum: number, trip) => sum + (trip.transportTripFee || 0), 0);
+      const paidAmount = company.payments.reduce((sum: number, payment) => sum + payment.amountPaid, 0);
       const outstandingAmount = totalAmount - paidAmount;
 
       return {
