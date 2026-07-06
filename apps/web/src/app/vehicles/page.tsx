@@ -118,7 +118,7 @@ export default function VehiclesPage() {
     e.preventDefault();
     if (!editingVehicle) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/vehicles/${editingVehicle.id}`, {
+      const res = await fetch(`/api/vehicles/${editingVehicle.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editVName, type: editVType, brand: editVBrand, model: editVModel, year: editVYear, roadTaxExpiry: editVRoadTax, insuranceExpiry: editVInsurance, inspectionExpiry: editVInspection })
@@ -135,7 +135,7 @@ export default function VehiclesPage() {
 
   const fetchVehicles = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/vehicles`);
+      const res = await fetch('/api/vehicles');
       const data = await res.json();
       setVehicles(data);
       if (data.length > 0 && !selectedVehicleId) {
@@ -154,7 +154,7 @@ export default function VehiclesPage() {
     }
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/vehicles`, {
+      const res = await fetch('/api/vehicles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -190,7 +190,7 @@ export default function VehiclesPage() {
       return;
     }
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/vehicles/${selectedVehicleId}/maintenance`, {
+      const res = await fetch(`/api/vehicles/${selectedVehicleId}/maintenance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -219,7 +219,7 @@ export default function VehiclesPage() {
       return;
     }
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/vehicles/${selectedVehicleId}/fuel`, {
+      const res = await fetch(`/api/vehicles/${selectedVehicleId}/fuel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

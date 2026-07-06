@@ -62,15 +62,15 @@ export default function OverviewDashboard() {
     async function fetchData() {
       try {
         setLoading(true);
-        const statsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/dashboard/stats`);
+        const statsRes = await fetch('/api/dashboard/stats');
         const statsData = await statsRes.json();
         setStats(statsData);
 
-        const logsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auditlogs`);
+        const logsRes = await fetch('/api/auditlogs');
         const logsData = await logsRes.json();
         setLogs(logsData.slice(0, 8)); // Top 8 logs
 
-        const cashRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cashbook`);
+        const cashRes = await fetch('/api/cashbook');
         const cashData = await cashRes.json();
         setCashFlow(cashData.slice(0, 6)); // Top 6 cash records
       } catch (err) {

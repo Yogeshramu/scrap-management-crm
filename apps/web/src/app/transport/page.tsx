@@ -70,7 +70,7 @@ export default function TransportersPage() {
 
   const fetchTransporterSummaries = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transporters`);
+      const res = await fetch('/api/transporters');
       const data = await res.json();
       setSummaries(data);
       if (data.length > 0 && !selectedCompanyId) {
@@ -83,7 +83,7 @@ export default function TransportersPage() {
 
   const fetchTrips = async (id: number) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transporters/${id}/trips`);
+      const res = await fetch(`/api/transporters/${id}/trips`);
       const data = await res.json();
       setTrips(data);
       setSelectedTrips([]);
@@ -122,7 +122,7 @@ export default function TransportersPage() {
     e.preventDefault();
     if (!editingTransporter) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transporters/${editingTransporter.id}`, {
+      const res = await fetch(`/api/transporters/${editingTransporter.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editTransName, phone: editTransPhone })
@@ -149,7 +149,7 @@ export default function TransportersPage() {
       .reduce((sum, t) => sum + (t.transportTripFee || 0), 0);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transporters/${selectedCompanyId}/payments`, {
+      const res = await fetch(`/api/transporters/${selectedCompanyId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

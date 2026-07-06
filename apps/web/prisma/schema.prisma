@@ -1,0 +1,173 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Supplier {
+  id                 Int        @id @default(autoincrement())
+  name               String     @unique
+  contact            String?
+  outstandingAdvance Float      @default(0.0) // Advance credit currently active. Deducted from purchases.
+  purchases          Purchase[]
+  createdAt          DateTime   @default(now())
+}
+
+model Purchase {
+  id                       String            @id // Format: INV-2026-XXX
+  type                     String            // "VEHICLE" or "MIXED_SCRAP"
+  date                     DateTime          @default(now())
+  supplierId               Int
+  supplier                 Supplier          @relation(fields: [supplierId], references: [id])
+  pickupLocation           String
+  logisticsMethod          String            // "HIAB", "TOWING", "COMPANY_VEHICLE"
+  driverName               String?
+  agreedPrice              Float             // Total gross material price
+  previousAdvanceDeduction Float             @default(0.0) // Deducted advance
+  cashToPay                Float             // Total Cash Due (agreedPrice - previousAdvanceDeduction)
+  paymentStatus            String            // "PAID", "PARTIAL", "UNPAID"
+  paymentMethod            String            // "CASH", "BANK_TRANSFER"
+  createdBy                String?           @default("Manager")
+  createdAt                DateTime          @default(now())
+
+  // Specific Columns for VEHICLE mode
+  vehicleModel             String?
+  engineIntact             Boolean?
+  gearboxPresent           Boolean?
+  catalyticConverter       Boolean?
+  alloyWheelsCount         Int?              @default(0)
+  vehiclePhoto             String?           // Image file/URL
+
+  // Specific Columns for MIXED SCRAP mode
+  lotName                  String?
+  scrapDescription         String?
+  scrapPhoto               String?           // Image file/URL
+  grossTonnageEstimate     Float?            // Gross Lot Tonnage in KG
+
+  // Transporter (if Towing / HIAB is external)
+  transportCompanyId       Int?
+  transportCompany         TransportCompany? @relation(fields: [transportCompanyId], references: [id])
+  transportTripFee         Float?            @default(0.0)
+  transportPaymentStatus   String?           @default("UNPAID") // "PAID", "UNPAID", "N/A"
+  transportPaymentId       Int?
+}
+
+model TransportCompany {
+  id          Int                  @id @default(autoincrement())
+  name        String               @unique
+  phone       String?
+  trips       Purchase[]
+  payments    TransporterPayment[]
+  createdAt   DateTime             @default(now())
+}
+
+model TransporterPayment {
+  id                 Int              @id @default(autoincrement())
+  transportCompanyId Int
+  transportCompany   TransportCompany @relation(fields: [transportCompanyId], references: [id])
+  paymentDate        DateTime         @default(now())
+  paymentMethod      String
+  amountPaid         Float
+  tripsPaid          String           // JSON stringified list of purchase Reference IDs paid in this wave
+  createdAt          DateTime         @default(now())
+}
+
+model CashBook {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  type        String   // "IN" or "OUT"
+  category    String   // "PURCHASE", "SALE", "ADVANCE", "TRANSPORT", "OTHER"
+  amount      Float
+  referenceId String?  // Optional Reference ID (e.g. Purchase INV ID, Sales ID, Transporter Payout ID)
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  contact   String?
+  sales     Sale[]
+  createdAt DateTime @default(now())
+}
+
+model Sale {
+  id                String     @id // Format: SAL-2026-XXX
+  date              DateTime   @default(now())
+  customerId        Int
+  customer          Customer   @relation(fields: [customerId], references: [id])
+  subtotal          Float
+  grandTotal        Float
+  paymentStatus     String     // "PAID", "PARTIAL", "UNPAID"
+  paymentReceived   Float      @default(0.0)
+  balanceDue        Float      @default(0.0)
+  customerBillPhoto String?    // Uploaded ID/Invoice PDF or Image
+  products          SaleItem[]
+  createdAt         DateTime   @default(now())
+}
+
+model SaleItem {
+  id        Int    @id @default(autoincrement())
+  saleId    String
+  sale      Sale   @relation(fields: [saleId], references: [id])
+  product   String // e.g. "Copper", "Iron", "Brass", "Aluminum"
+  quantity  Float
+  unit      String // e.g. "KG", "TON"
+  price     Float
+  amount    Float
+}
+
+model VehicleInventory {
+  id                 Int                  @id @default(autoincrement())
+  name               String
+  type               String               // "Truck", "HIAB", "Tow Truck", "SUV", etc.
+  plateNumber        String               @unique
+  brand              String
+  model              String
+  year               Int
+  roadTaxExpiry      DateTime
+  insuranceExpiry    DateTime
+  inspectionExpiry   DateTime
+  status             String               // "Active", "Expiring Soon", "Expired"
+  roadTaxPdf         String?
+  insurancePdf       String?
+  registrationCardPdf String?
+  inspectionPdf      String?
+  maintenanceLogs    VehicleMaintenance[]
+  fuelLogs           VehicleFuel[]
+  createdAt          DateTime             @default(now())
+}
+
+model VehicleMaintenance {
+  id          Int              @id @default(autoincrement())
+  vehicleId   Int
+  vehicle     VehicleInventory @relation(fields: [vehicleId], references: [id])
+  date        DateTime
+  service     String           // "Oil Change", "Tyres", "Battery", etc.
+  cost        Float
+  workshop    String?
+  createdAt   DateTime         @default(now())
+}
+
+model VehicleFuel {
+  id        Int              @id @default(autoincrement())
+  vehicleId Int
+  vehicle   VehicleInventory @relation(fields: [vehicleId], references: [id])
+  date      DateTime
+  amount    Float            // Liters
+  cost      Float
+  odometer  Float?
+  createdAt DateTime         @default(now())
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  action      String   // Description of action (e.g. "CREATED PURCHASE INV-2026-089")
+  performedBy String   // e.g. "Manager", "Sufri", etc.
+  timestamp   DateTime @default(now())
+  details     String?
+}

@@ -135,13 +135,13 @@ export default function PurchasesPage() {
 
   const fetchData = async () => {
     try {
-      const supRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/suppliers`);
+      const supRes = await fetch('/api/suppliers');
       setSuppliers(await supRes.json());
 
-      const transRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/transporters`);
+      const transRes = await fetch('/api/transporters');
       setTransporters(await transRes.json());
 
-      const purchaseRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchases`);
+      const purchaseRes = await fetch('/api/purchases');
       setPurchases(await purchaseRes.json());
     } catch (err) {
       console.error(err);
@@ -159,7 +159,7 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!newSupName) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/suppliers`, {
+      const res = await fetch('/api/suppliers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -223,7 +223,7 @@ export default function PurchasesPage() {
         body.scrapPhoto = scrapPhoto;
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchases`, {
+      const res = await fetch('/api/purchases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -264,7 +264,7 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!editingSupplier) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/suppliers/${editingSupplier.id}`, {
+      const res = await fetch(`/api/suppliers/${editingSupplier.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editSupName, contact: editSupContact, outstandingAdvance: parseFloat(editSupAdvance) || 0 })
@@ -325,7 +325,7 @@ export default function PurchasesPage() {
         body.transportTripFee = parseFloat(editTransportTripFee) || 0;
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/purchases/${editingPurchase.id}`, {
+      const res = await fetch(`/api/purchases/${editingPurchase.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

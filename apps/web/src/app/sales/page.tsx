@@ -86,10 +86,10 @@ export default function SalesPage() {
 
   const fetchData = async () => {
     try {
-      const custRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sales/customers`);
+      const custRes = await fetch('/api/sales/customers');
       setCustomers(await custRes.json());
 
-      const salesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sales`);
+      const salesRes = await fetch('/api/sales');
       setSales(await salesRes.json());
     } catch (err) {
       console.error(err);
@@ -100,7 +100,7 @@ export default function SalesPage() {
     e.preventDefault();
     if (!newCustName) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sales/customers`, {
+      const res = await fetch('/api/sales/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -148,7 +148,7 @@ export default function SalesPage() {
     e.preventDefault();
     if (!editingSale) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sales/${editingSale.id}`, {
+      const res = await fetch(`/api/sales/${editingSale.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentStatus: editSalePaymentStatus, paymentReceived: parseFloat(editSalePaymentReceived) || 0 })
@@ -173,7 +173,7 @@ export default function SalesPage() {
     e.preventDefault();
     if (!editingCustomer) return;
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sales/customers/${editingCustomer.id}`, {
+      const res = await fetch(`/api/sales/customers/${editingCustomer.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editCustName, contact: editCustContact })
@@ -209,7 +209,7 @@ export default function SalesPage() {
         }))
       };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sales`, {
+      const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
