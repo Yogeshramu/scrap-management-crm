@@ -60,8 +60,7 @@ export const createSale = async (req: Request, res: Response) => {
 
     const saleId = await generateNextSaleId();
 
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create Sale Record
+    const result = await prisma.$transaction(async (tx: any) => {
       const sale = await tx.sale.create({
         data: {
           id: saleId,
@@ -123,7 +122,7 @@ export const updateSale = async (req: Request, res: Response) => {
     const received = paymentStatus === 'PAID' ? existing.grandTotal : (parseFloat(paymentReceived) || existing.paymentReceived);
     const balance = existing.grandTotal - received;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       const sale = await tx.sale.update({
         where: { id },
         data: {

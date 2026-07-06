@@ -10,10 +10,10 @@ export const getTransporters = async (req: Request, res: Response) => {
       }
     });
 
-    const summary = companies.map(c => {
+    const summary = companies.map((c) => {
       const totalTrips = c.trips.length;
-      const totalAmount = c.trips.reduce((sum, t) => sum + (t.transportTripFee || 0.0), 0.0);
-      const paidAmount = c.payments.reduce((sum, p) => sum + p.amountPaid, 0.0);
+      const totalAmount = c.trips.reduce((sum: number, t) => sum + (t.transportTripFee || 0.0), 0.0);
+      const paidAmount = c.payments.reduce((sum: number, p) => sum + p.amountPaid, 0.0);
       const outstandingAmount = totalAmount - paidAmount;
 
       return {
@@ -85,7 +85,7 @@ export const createTransporterPayment = async (req: Request, res: Response) => {
 
     const floatAmount = parseFloat(amountPaid) || 0.0;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // 1. Create Payment Log
       const paymentLog = await tx.transporterPayment.create({
         data: {

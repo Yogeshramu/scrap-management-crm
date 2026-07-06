@@ -63,7 +63,7 @@ export const createPurchase = async (req: Request, res: Response) => {
 
     const purchaseId = await generateNextPurchaseId();
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const record = await tx.purchase.create({
         data: {
           id: purchaseId,
@@ -164,7 +164,7 @@ export const updatePurchase = async (req: Request, res: Response) => {
     const existing = await prisma.purchase.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Purchase not found' });
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       const record = await tx.purchase.update({
         where: { id },
         data: {

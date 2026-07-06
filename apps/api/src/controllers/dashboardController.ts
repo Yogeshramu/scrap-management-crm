@@ -14,7 +14,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         },
       },
     });
-    const totalSpentToday = todayPurchases.reduce((sum, p) => sum + p.agreedPrice, 0);
+    const totalSpentToday = todayPurchases.reduce((sum: number, p) => sum + p.agreedPrice, 0);
 
     // Total vehicles acquired today
     const vehiclesAcquired = todayPurchases.filter(p => p.type === 'VEHICLE').length;
@@ -22,14 +22,14 @@ export const getDashboardStats = async (req: Request, res: Response) => {
     // Alloy wheels acquired today
     const alloyWheelsToday = todayPurchases
       .filter(p => p.type === 'VEHICLE')
-      .reduce((sum, p) => sum + (p.alloyWheelsCount || 0), 0);
+      .reduce((sum: number, p) => sum + (p.alloyWheelsCount || 0), 0);
 
     // Logistics runs today
     const logisticsRunsToday = todayPurchases.length;
 
     // Expiry alerts for vehicles
     const vehicles = await prisma.vehicleInventory.findMany();
-    const expiryAlerts = vehicles.map(v => {
+    const expiryAlerts = vehicles.map((v) => {
       const roadTaxDays = Math.ceil((new Date(v.roadTaxExpiry).getTime() - Date.now()) / (1000 * 3600 * 24));
       const insDays = Math.ceil((new Date(v.insuranceExpiry).getTime() - Date.now()) / (1000 * 3600 * 24));
       const isInspExpired = new Date(v.inspectionExpiry).getTime() < Date.now();
@@ -43,7 +43,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         isInspExpired,
         status: roadTaxDays <= 30 || insDays <= 15 || isInspExpired ? 'WARNING' : 'OK'
       };
-    }).filter(a => a.status === 'WARNING');
+    }).filter((a) => a.status === 'WARNING');
 
     res.json({
       totalSpentToday,
