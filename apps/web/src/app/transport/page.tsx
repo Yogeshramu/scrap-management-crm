@@ -281,6 +281,26 @@ export default function TransportersPage() {
                     type="button" 
                     className="btn-outline" 
                     style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onClick={() => {
+                      if (trips.length === 0) return;
+                      const headers = ['Trip ID', 'Date', 'Description', 'Pickup Location', 'Trip Fee (BND)', 'Payment Status'];
+                      const rows = trips.map(t => [
+                        t.id,
+                        new Date(t.date).toLocaleDateString(),
+                        t.type === 'VEHICLE' ? (t.vehicleModel || '') : (t.lotName || ''),
+                        t.pickupLocation,
+                        t.transportTripFee?.toFixed(2) ?? '0.00',
+                        t.transportPaymentStatus,
+                      ]);
+                      const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `transport-statement-${currentSummary?.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
                   >
                     <Download size={14} /> CSV Statement
                   </button>

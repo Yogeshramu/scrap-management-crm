@@ -1,0 +1,164 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Plus, Building2, Save, X, Pencil, Phone, AlertTriangle } from 'lucide-react';
+
+interface Supplier {
+  id: number;
+  name: string;
+  contact?: string;
+  outstandingAdvance: number;
+  bankName?: string;
+  bankAccount?: string;
+  documents?: string;
+  createdAt: string;
+  _count?: { purchases: number };
+}
+
+export default function SuppliersPage() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<Supplier | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [form, setForm] = useState({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '', documents: '' });
+
+  useEffect(() => { fetchSuppliers(); }, []);
+
+  const fetchSuppliers = async () => {
+    const res = await fetch('/api/suppliers');
+    setSuppliers(await res.json());
+  };
+
+  const openAdd = () => { setEditing(null); setForm({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '', documents: '' }); setShowModal(true); };
+  const openEdit = (s: Supplier) => { setEditing(s); setForm({ name: s.name, contact: s.contact || '', outstandingAdvance: s.outstandingAdvance.toString(), bankName: s.bankName || '', bankAccount: s.bankAccount || '', documents: s.documents || '' }); setShowModal(true); };
+
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    try {
+      const url = editing ? `/api/suppliers/${editing.id}` : '/api/suppliers';
+      const method = editing ? 'PUT' : 'POST';
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, contact: form.contact, outstandingAdvance: parseFloat(form.outstandingAdvance) || 0, bankName: form.bankName || null, bankAccount: form.bankAccount || null, documents: form.documents || null }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMessage({ type: 'success', text: editing ? `Updated ${form.name}` : `Supplier ${form.name} registered.` });
+      setShowModal(false);
+      fetchSuppliers();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const totalAdvance = suppliers.reduce((s, x) => s + x.outstandingAdvance, 0);
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1>Supplier Management</h1>
+          <p className="page-title-desc">Manage scrap and vehicle suppliers, track outstanding advances and contact details.</p>
+        </div>
+        <button className="btn-primary" onClick={openAdd}><Plus size={16} /> Add Supplier</button>
+      </div>
+
+      {message && (
+        <div style={{ padding: '16px', borderRadius: '12px', marginBottom: '24px', background: message.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', border: message.type === 'success' ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)', color: message.type === 'success' ? '#10b981' : '#ef4444', fontWeight: 500, display: 'flex', justifyContent: 'space-between' }}>
+          <span>{message.text}</span>
+          <button style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMessage(null)}><X size={16} /></button>
+        </div>
+      )}
+
+      <div className="metrics-grid" style={{ marginBottom: '32px' }}>
+        <div className="metric-card">
+          <div className="metric-info"><h3>Total Suppliers</h3><div className="metric-value">{suppliers.length}</div></div>
+          <div className="metric-icon-wrap" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}><Building2 size={22} /></div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-info"><h3>Total Outstanding Advances</h3><div className="metric-value" style={{ color: totalAdvance > 0 ? '#f59e0b' : '#10b981' }}>B$ {totalAdvance.toFixed(2)}</div></div>
+          <div className="metric-icon-wrap" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}><AlertTriangle size={22} /></div>
+        </div>
+      </div>
+
+      <div className="glass-panel">
+        <div className="table-wrapper">
+          <table className="custom-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Supplier Name</th>
+                <th>Contact</th>
+                <th>Bank</th>
+                <th>Outstanding Advance</th>
+                <th>Registered</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {suppliers.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No suppliers registered.</td></tr>
+              ) : suppliers.map(s => (
+                <tr key={s.id}>
+                  <td><code style={{ color: '#6366f1', background: 'rgba(99,102,241,0.08)', padding: '2px 6px', borderRadius: '4px' }}>SUP-{String(s.id).padStart(3, '0')}</code></td>
+                  <td style={{ fontWeight: 600, color: '#fff' }}>{s.name}</td>
+                  <td style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={13} style={{ opacity: 0.5 }} />{s.contact || '—'}</td>
+                  <td style={{ fontSize: '0.85rem' }}>{s.bankName ? `${s.bankName}${s.bankAccount ? ` ···${s.bankAccount.slice(-4)}` : ''}` : '—'}</td>
+                  <td>
+                    {s.outstandingAdvance > 0
+                      ? <span style={{ color: '#f59e0b', fontWeight: 650 }}>B$ {s.outstandingAdvance.toFixed(2)}</span>
+                      : <span style={{ color: '#10b981' }}>Nil</span>}
+                  </td>
+                  <td>{new Date(s.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    <button onClick={() => openEdit(s)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+                      <Pencil size={13} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="overlay">
+          <div className="modal-content">
+            <div className="flex-between" style={{ marginBottom: '20px' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>{editing ? 'Edit Supplier' : 'Register New Supplier'}</h2>
+              <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-group">
+                <label>Supplier / Company Name</label>
+                <input type="text" className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>Contact Phone</label>
+                <input type="text" className="form-input" placeholder="+673 8xxxxxx" value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Outstanding Advance (BND)</label>
+                <input type="number" className="form-input" placeholder="0.00" value={form.outstandingAdvance} onChange={e => setForm({ ...form, outstandingAdvance: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Bank Name</label>
+                <input type="text" className="form-input" placeholder="e.g. Baiduri Bank" value={form.bankName} onChange={e => setForm({ ...form, bankName: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Bank Account No.</label>
+                <input type="text" className="form-input" placeholder="e.g. 01-234567-8" value={form.bankAccount} onChange={e => setForm({ ...form, bankAccount: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Documents / Notes</label>
+                <input type="text" className="form-input" placeholder="e.g. IC copy, agreement doc URL" value={form.documents} onChange={e => setForm({ ...form, documents: e.target.value })} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary"><Save size={16} /> {editing ? 'Save Changes' : 'Register'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

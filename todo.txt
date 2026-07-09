@@ -1,0 +1,60 @@
+n reviewing the live build (scrap-management-crm.vercel.app) and the business workflow.
+Fix First
+Dashboard is stuck on "Querying databases systems...
+"
+— stats never load. Check the API/data fetch on the home page.
+Business name is inconsistent across the app (three different names show up: "Nur Afiq Recycles,
+" "Nur Afiq Recycling,
+" "Nur Afiq Enterprises"). Pick
+one and use it everywhere — nav, page titles, footer.
+Purchase Module
+The business buys mostly individual vehicles, plus some loose scrap, plus mixed scrap lots (e.g. old aircon units with several materials in one
+item). The entry form needs to handle all three without feeling like three different apps.
+1. Three entry modes (tabs)
+Vehicle / Loose Scrap / Mixed Lot
+2. Vehicle mode
+Vehicle model/name, pickup location
+Condition checklist: engine intact, gearbox present, catalytic converter, alloy wheel count
+Photo upload (optional)
+Agreed price
+3. Loose Scrap / Mixed Lot mode
+Multiple material line items (material, qty, unit, rate) — not a single product field
+Auto-calculated line totals and grand total
+4. Supplier advance auto-deduct
+When a supplier is selected, check if they have an outstanding advance/loan on file
+Show an alert and auto-subtract it from today's cash due
+5. Logistics
+Internal transport vs. rented tow truck, with a trip fee field
+(Open question — see below) whether to track which driver/operator handled the trip
+6. Payment status
+Paid / Pending / Partial — with calculated cash due shown clearly
+7. Purchases ledger table
+Purchase ID, date, supplier, asset/materials summary, total amount, payment status, photo indicator
+Transport / Logistics Settlement (separate report)
+Log of trips made by rented transporters
+Trip fee owed per job, filterable by transporter and billing cycle
+Exportable statement (CSV/PDF) to send to the transporter
+Vehicle Management (your OWN fleet — different from purchased vehicles)
+This is separate from the Purchase module above — this tracks vehicles the business owns and operates, not vehicles bought as scrap.
+Vehicle number, type, brand/model, registration
+Insurance details, road tax details, expiry dates
+Maintenance history, service records
+Documents, photos
+Alerts for: road tax expiry, insurance expiry, scheduled servicing
+No driver assignment needed in this module
+Still to Be Built
+Employee Management (ID, personal details, salary, documents, attendance)
+Supplier Management (code, contact, bank details, documents, photo)
+Customer Management
+Sales Management (invoices, products sold, totals)
+Expense Management (category, payment method, paid to)
+Attendance (single system across all months)
+Salary Management (working days, present days, overtime, advances, net salary)
+Reports (Sales/Purchases/Expenses/Salary/Employees/Suppliers/Customers, with date filters: today/week/month/year/custom)
+Dashboard (real stats — sales, purchases, expenses, employees, vehicle alerts)
+User Roles & Permissions
+❓ Open Questions to Confirm Before Building
+Final business name to use system-wide
+Driver/operator field on Purchase logistics — keep it or remove it?
+No GST fields anywhere (confirmed — business doesn't file GST)
+Nur Afiq Recycling — Business Management System · Featur

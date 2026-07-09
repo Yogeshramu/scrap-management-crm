@@ -1,14 +1,26 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
   TrendingUp,
   Truck,
   CalendarMinus2,
+  Users,
+  Building2,
+  UserCheck,
+  Receipt,
+  CreditCard,
+  CalendarDays,
+  Banknote,
+  BarChart3,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  LogOut,
+  UserCircle,
+  ShieldCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,16 +28,47 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const links = [
-  { href: '/', label: 'Overview Specs', icon: LayoutDashboard },
+const allLinks = [
+  { href: '/dashboard', label: 'Overview Specs', icon: LayoutDashboard },
   { href: '/purchases', label: 'Purchase Inbound', icon: ShoppingBag },
   { href: '/sales', label: 'Sales Outbound', icon: TrendingUp },
   { href: '/transport', label: 'Transporters Lot', icon: Truck },
   { href: '/vehicles', label: 'Fleet & Alerts', icon: CalendarMinus2 },
+  { href: '/employees', label: 'Employees', icon: Users, role: 'ADMIN' },
+  { href: '/suppliers', label: 'Suppliers', icon: Building2 },
+  { href: '/customers', label: 'Customers', icon: UserCheck },
+  { href: '/expenses', label: 'Expenses', icon: CreditCard, role: 'ADMIN' },
+  { href: '/attendance', label: 'Attendance', icon: CalendarDays },
+  { href: '/salary', label: 'Salary', icon: Banknote, role: 'ADMIN' },
+  { href: '/reports', label: 'Reports', icon: BarChart3, role: 'ADMIN' },
+  { href: '/users', label: 'User Management', icon: ShieldCheck, role: 'ADMIN' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) setUser(data.user);
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  };
+
+  const visibleLinks = allLinks.filter(link => {
+    if (!link.role) return true;
+    if (user && user.role !== 'STAFF') return true; // ADMIN or MANAGER
+    return false; // hide restricted links from STAFF
+  });
 
   return (
     <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
@@ -34,7 +77,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className="sidebar-toggle-row">
         <div className="sidebar-logo-wrap">
           <div className="logo-icon">NA</div>
-          <span className="logo-text">Nur Afiq Recycles</span>
+          <span className="logo-text">Nur Afiq Recycling</span>
         </div>
         <button className="sidebar-toggle-btn" onClick={onToggle} title={collapsed ? 'Expand' : 'Collapse'}>
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -42,10 +85,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Nav links */}
-      <ul className="nav-links">
-        {links.map((link) => {
+      <ul className="nav-links" style={{ overflowY: 'auto', flex: 1 }}>
+        {visibleLinks.map((link) => {
           const Icon = link.icon;
-          const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
+          const isActive = pathname === link.href || (link.href !== '/dashboard' && pathname.startsWith(link.href));
           return (
             <li key={link.href}>
               <Link
@@ -62,9 +105,31 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </ul>
 
       {/* Footer */}
-      <div className="sidebar-footer">
-        <p className="sidebar-footer-title">Operational Portal</p>
-        <p className="sidebar-footer-sub">Nur Afiq Enterprises</p>
+      <div className="sidebar-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {user ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <UserCircle size={24} style={{ color: '#6366f1' }} />
+            {!collapsed && (
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{user.name}</p>
+                <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{user.role}</p>
+              </div>
+            )}
+            {!collapsed && (
+              <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Logout">
+                <LogOut size={16} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <p className="sidebar-footer-sub">Loading...</p>
+        )}
+        
+        {collapsed && user && (
+          <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center' }} title="Logout">
+            <LogOut size={18} />
+          </button>
+        )}
       </div>
     </aside>
   );

@@ -1,9 +1,15 @@
 'use client';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import Sidebar from '../components/Sidebar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(true);
+  const pathname = usePathname();
+
+  if (pathname === '/login' || pathname === '/') {
+    return <main>{children}</main>;
+  }
 
   return (
     <div

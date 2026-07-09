@@ -12,7 +12,10 @@ model Supplier {
   id                 Int        @id @default(autoincrement())
   name               String     @unique
   contact            String?
-  outstandingAdvance Float      @default(0.0) // Advance credit currently active. Deducted from purchases.
+  outstandingAdvance Float      @default(0.0)
+  bankName           String?
+  bankAccount        String?
+  documents          String?    // JSON array of doc URLs
   purchases          Purchase[]
   createdAt          DateTime   @default(now())
 }
@@ -42,11 +45,12 @@ model Purchase {
   alloyWheelsCount         Int?              @default(0)
   vehiclePhoto             String?           // Image file/URL
 
-  // Specific Columns for MIXED SCRAP mode
+  // Specific Columns for MIXED SCRAP / LOOSE SCRAP mode
   lotName                  String?
   scrapDescription         String?
   scrapPhoto               String?           // Image file/URL
   grossTonnageEstimate     Float?            // Gross Lot Tonnage in KG
+  scrapLineItems           ScrapLineItem[]
 
   // Transporter (if Towing / HIAB is external)
   transportCompanyId       Int?
@@ -54,6 +58,17 @@ model Purchase {
   transportTripFee         Float?            @default(0.0)
   transportPaymentStatus   String?           @default("UNPAID") // "PAID", "UNPAID", "N/A"
   transportPaymentId       Int?
+}
+
+model ScrapLineItem {
+  id         Int      @id @default(autoincrement())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  material   String   // e.g. "Copper", "Iron", "Aluminium"
+  qty        Float
+  unit       String   // e.g. "KG", "PCS", "TON"
+  rate       Float    // price per unit
+  amount     Float    // qty * rate
 }
 
 model TransportCompany {
@@ -166,8 +181,76 @@ model VehicleFuel {
 
 model AuditLog {
   id          Int      @id @default(autoincrement())
-  action      String   // Description of action (e.g. "CREATED PURCHASE INV-2026-089")
-  performedBy String   // e.g. "Manager", "Sufri", etc.
+  action      String
+  performedBy String
   timestamp   DateTime @default(now())
   details     String?
 }
+
+model Employee {
+  id           Int          @id @default(autoincrement())
+  employeeId   String       @unique // e.g. EMP-001
+  name         String
+  icNumber     String?
+  phone        String?
+  position     String?
+  department   String?
+  salary       Float        @default(0.0)
+  bankAccount  String?
+  bankName     String?
+  photo        String?
+  documents    String?      // JSON array of doc URLs
+  status       String       @default("Active") // "Active", "Inactive"
+  joinDate     DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+  attendance   Attendance[]
+  salaryRecords SalaryRecord[]
+}
+
+model Attendance {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  date       DateTime
+  status     String   // "PRESENT", "ABSENT", "HALF_DAY", "LEAVE"
+  createdAt  DateTime @default(now())
+}
+
+model SalaryRecord {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  month        Int      // 1-12
+  year         Int
+  workingDays  Int
+  presentDays  Int
+  overtimeHours Float   @default(0)
+  overtimeRate  Float   @default(0)
+  advances     Float    @default(0)
+  grossSalary  Float
+  netSalary    Float
+  status       String   @default("UNPAID") // "PAID", "UNPAID"
+  createdAt    DateTime @default(now())
+}
+
+model Expense {
+  id            Int      @id @default(autoincrement())
+  date          DateTime @default(now())
+  category      String   // "UTILITIES", "RENT", "MAINTENANCE", "FUEL", "OFFICE", "OTHER"
+  description   String
+  amount        Float
+  paymentMethod String   // "CASH", "BANK_TRANSFER"
+  paidTo        String?
+  referenceId   String?
+  createdAt     DateTime @default(now())
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("STAFF") // "ADMIN", "MANAGER", "STAFF"
+  createdAt    DateTime @default(now())
+}
+

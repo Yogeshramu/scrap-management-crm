@@ -63,13 +63,21 @@ interface Purchase {
   transportPaymentStatus?: string;
 }
 
+interface LineItem {
+  id: string;
+  material: string;
+  qty: string;
+  unit: string;
+  rate: string;
+}
+
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [transporters, setTransporters] = useState<Transporter[]>([]);
   
   // Form state
-  const [type, setType] = useState<'VEHICLE' | 'MIXED_SCRAP'>('VEHICLE');
+  const [type, setType] = useState<'VEHICLE' | 'LOOSE_SCRAP' | 'MIXED_SCRAP'>('VEHICLE');
   const [supplierId, setSupplierId] = useState<string>('');
   const [pickupLocation, setPickupLocation] = useState('');
   const [logisticsMethod, setLogisticsMethod] = useState<'HIAB' | 'TOWING' | 'COMPANY_VEHICLE'>('HIAB');
@@ -86,10 +94,17 @@ export default function PurchasesPage() {
   const [alloyWheelsCount, setAlloyWheelsCount] = useState<number>(0);
   const [vehiclePhoto, setVehiclePhoto] = useState('/uploads/hilux_front.jpg');
 
+  // Loose Scrap specific
+  const [looseMaterial, setLooseMaterial] = useState('');
+  const [looseQty, setLooseQty] = useState('');
+  const [looseUnit, setLooseUnit] = useState('KG');
+  const [looseRate, setLooseRate] = useState('');
+
   const [lotName, setLotName] = useState('');
   const [scrapDescription, setScrapDescription] = useState('');
   const [grossTonnageEstimate, setGrossTonnageEstimate] = useState('');
   const [scrapPhoto, setScrapPhoto] = useState('/uploads/scrap_lot_3.jpg');
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
   // External logistics
   const [transportCompanyId, setTransportCompanyId] = useState('');
@@ -186,8 +201,7 @@ export default function PurchasesPage() {
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!supplierId || !pickupLocation || agreedPrice === '') {
+    if (!supplierId || !pickupLocation || (type === 'VEHICLE' && agreedPrice === '')) {
       setMessage({ type: 'error', text: 'Please complete all required fields.' });
       return;
     }
@@ -201,7 +215,7 @@ export default function PurchasesPage() {
         driverName,
         paymentStatus,
         paymentMethod,
-        agreedPrice: parseFloat(agreedPrice) || 0,
+        agreedPrice: computedAgreedPrice,
       };
 
       if (logisticsMethod === 'TOWING') {
@@ -216,11 +230,18 @@ export default function PurchasesPage() {
         body.catalyticConverter = catalyticConverter;
         body.alloyWheelsCount = alloyWheelsCount;
         body.vehiclePhoto = vehiclePhoto;
+      } else if (type === 'LOOSE_SCRAP') {
+        body.lotName = looseMaterial;
+        body.scrapDescription = `${looseQty} ${looseUnit} @ B$${looseRate}/${looseUnit}`;
+        body.grossTonnageEstimate = parseFloat(looseQty) || 0;
+        body.scrapPhoto = scrapPhoto;
+        body.lineItems = [{ id: '1', material: looseMaterial, qty: looseQty, unit: looseUnit, rate: looseRate }];
       } else {
         body.lotName = lotName;
         body.scrapDescription = scrapDescription;
         body.grossTonnageEstimate = parseFloat(grossTonnageEstimate) || 0;
         body.scrapPhoto = scrapPhoto;
+        body.lineItems = lineItems;
       }
 
       const res = await fetch('/api/purchases', {
@@ -242,6 +263,10 @@ export default function PurchasesPage() {
       setScrapDescription('');
       setGrossTonnageEstimate('');
       setAlloyWheelsCount(0);
+      setLineItems([]);
+      setLooseMaterial('');
+      setLooseQty('');
+      setLooseRate('');
       setSelectedSupplier(null);
       setSupplierId('');
       
@@ -341,11 +366,17 @@ export default function PurchasesPage() {
     }
   };
 
-  const calculatedAdvanceDeduction = selectedSupplier && parseFloat(agreedPrice)
-    ? Math.min(selectedSupplier.outstandingAdvance, parseFloat(agreedPrice))
+  const computedAgreedPrice = type === 'MIXED_SCRAP' 
+    ? lineItems.reduce((acc, item) => acc + (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0), 0)
+    : type === 'LOOSE_SCRAP'
+    ? (parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)
+    : parseFloat(agreedPrice) || 0;
+
+  const calculatedAdvanceDeduction = selectedSupplier && computedAgreedPrice
+    ? Math.min(selectedSupplier.outstandingAdvance, computedAgreedPrice)
     : 0;
-  const calculatedCashDue = parseFloat(agreedPrice) 
-    ? Math.max(0, parseFloat(agreedPrice) - calculatedAdvanceDeduction)
+  const calculatedCashDue = computedAgreedPrice 
+    ? Math.max(0, computedAgreedPrice - calculatedAdvanceDeduction)
     : 0;
 
   return (
@@ -382,8 +413,11 @@ export default function PurchasesPage() {
         <div className={`tab-nav ${type === 'VEHICLE' ? 'active' : ''}`} onClick={() => setType('VEHICLE')}>
           <Car size={16} /> Single Car Entry Mode
         </div>
+        <div className={`tab-nav ${type === 'LOOSE_SCRAP' ? 'active' : ''}`} onClick={() => setType('LOOSE_SCRAP')}>
+          <Package size={16} /> Loose Scrap Entry
+        </div>
         <div className={`tab-nav ${type === 'MIXED_SCRAP' ? 'active' : ''}`} onClick={() => setType('MIXED_SCRAP')}>
-          <Package size={16} /> Mixed Tender & Scrap Pile Screen
+          <Package size={16} /> Mixed Lot Screen
         </div>
       </div>
 
@@ -535,7 +569,62 @@ export default function PurchasesPage() {
               </>
             )}
 
-            {/* Mode B: Mixed Tender Parameters */}
+            {/* Mode B: Loose Scrap */}
+            {type === 'LOOSE_SCRAP' && (
+              <>
+                <div className="col-6 form-group">
+                  <label>Material Type</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Copper Wire, Iron Rods"
+                    value={looseMaterial}
+                    onChange={(e) => setLooseMaterial(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="col-2 form-group">
+                  <label>Quantity</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    placeholder="e.g. 250"
+                    value={looseQty}
+                    onChange={(e) => setLooseQty(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="col-2 form-group">
+                  <label>Unit</label>
+                  <select className="form-input" value={looseUnit} onChange={(e) => setLooseUnit(e.target.value)}>
+                    <option value="KG">KG</option>
+                    <option value="TON">TON</option>
+                    <option value="PCS">PCS</option>
+                  </select>
+                </div>
+                <div className="col-2 form-group">
+                  <label>Rate (BND/{looseUnit})</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    placeholder="0.00"
+                    value={looseRate}
+                    onChange={(e) => setLooseRate(e.target.value)}
+                    required
+                  />
+                </div>
+                {looseQty && looseRate && (
+                  <div className="col-12">
+                    <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Calculated Total</span>
+                      <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>B$ {((parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)).toFixed(2)}</strong>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Mode C: Mixed Lot Parameters */}
             {type === 'MIXED_SCRAP' && (
               <>
                 <div className="col-6 form-group">
@@ -571,6 +660,95 @@ export default function PurchasesPage() {
                     value={scrapDescription}
                     onChange={(e) => setScrapDescription(e.target.value)}
                   />
+                </div>
+
+                <div className="col-12 form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <label style={{ marginBottom: 0 }}>Materials Inventory Line Items</label>
+                    <button 
+                      type="button" 
+                      className="btn-outline" 
+                      onClick={() => setLineItems([...lineItems, { id: Date.now().toString(), material: '', qty: '', unit: 'KG', rate: '' }])}
+                      style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                    >
+                      <Plus size={14} /> Add Item
+                    </button>
+                  </div>
+                  
+                  {lineItems.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {lineItems.map((item, index) => (
+                        <div key={item.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="Material (e.g. Copper)" 
+                            value={item.material}
+                            onChange={(e) => {
+                              const newItems = [...lineItems];
+                              newItems[index].material = e.target.value;
+                              setLineItems(newItems);
+                            }}
+                            required
+                          />
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder="Qty" 
+                            style={{ width: '80px' }}
+                            value={item.qty}
+                            onChange={(e) => {
+                              const newItems = [...lineItems];
+                              newItems[index].qty = e.target.value;
+                              setLineItems(newItems);
+                            }}
+                            required
+                          />
+                          <select 
+                            className="form-input" 
+                            style={{ width: '90px' }}
+                            value={item.unit}
+                            onChange={(e) => {
+                              const newItems = [...lineItems];
+                              newItems[index].unit = e.target.value;
+                              setLineItems(newItems);
+                            }}
+                          >
+                            <option value="KG">KG</option>
+                            <option value="TON">TON</option>
+                            <option value="PCS">PCS</option>
+                          </select>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder="Rate (BND)" 
+                            style={{ width: '100px' }}
+                            value={item.rate}
+                            onChange={(e) => {
+                              const newItems = [...lineItems];
+                              newItems[index].rate = e.target.value;
+                              setLineItems(newItems);
+                            }}
+                            required
+                          />
+                          <div style={{ width: '100px', textAlign: 'right', fontWeight: 600, color: '#10b981' }}>
+                            ${((parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0)).toFixed(2)}
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setLineItems(lineItems.filter(li => li.id !== item.id))}
+                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', color: '#64748b', fontSize: '0.85rem' }}>
+                      No items added yet. Click "Add Item" to record scrap materials.
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -659,9 +837,10 @@ export default function PurchasesPage() {
                 type="number" 
                 className="form-input" 
                 placeholder="0.00" 
-                value={agreedPrice}
+                value={type !== 'VEHICLE' ? computedAgreedPrice.toFixed(2) : agreedPrice}
                 onChange={(e) => setAgreedPrice(e.target.value)}
-                required
+                disabled={type !== 'VEHICLE'}
+                required={type === 'VEHICLE'}
               />
             </div>
 

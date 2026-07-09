@@ -40,6 +40,32 @@ export async function GET() {
       })
       .filter((alert) => alert.status === 'WARNING');
 
+    // New additions: Sales, Expenses, Employees
+    const todaySales = await prisma.sale.findMany({
+      where: {
+        date: {
+          gte: today,
+        },
+      },
+    });
+    const totalSalesRevenueToday = todaySales.reduce((sum: number, sale) => sum + sale.grandTotal, 0);
+    const invoicesToday = todaySales.length;
+
+    const todayExpenses = await prisma.expense.findMany({
+      where: {
+        date: {
+          gte: today,
+        },
+      },
+    });
+    const totalExpensesToday = todayExpenses.reduce((sum: number, expense) => sum + expense.amount, 0);
+
+    const activeEmployeesCount = await prisma.employee.count({
+      where: {
+        status: 'Active',
+      },
+    });
+
     return NextResponse.json({
       totalSpentToday,
       vehiclesAcquired,
@@ -47,8 +73,13 @@ export async function GET() {
       logisticsRunsToday,
       expiryAlertsCount: expiryAlerts.length,
       expiryAlerts,
+      totalSalesRevenueToday,
+      invoicesToday,
+      totalExpensesToday,
+      activeEmployeesCount,
     });
   } catch (e: any) {
+    console.error("Error in /api/dashboard/route.ts:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
