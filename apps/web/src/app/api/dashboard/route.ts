@@ -1,70 +1,40 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withRetry } from '@/lib/retry';
 
 export async function GET() {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayPurchases = await prisma.purchase.findMany({
-      where: {
-        date: {
-          gte: today,
-        },
-      },
-    });
+    const [todayPurchases, vehicles, todaySales, todayExpenses, activeEmployeesCount] = await withRetry(() =>
+      Promise.all([
+        prisma.purchase.findMany({ where: { date: { gte: today } } }),
+        prisma.vehicleInventory.findMany(),
+        prisma.sale.findMany({ where: { date: { gte: today } } }),
+        prisma.expense.findMany({ where: { date: { gte: today } } }),
+        prisma.employee.count({ where: { status: 'Active' } }),
+      ])
+    );
 
-    const totalSpentToday = todayPurchases.reduce((sum: number, purchase) => sum + purchase.agreedPrice, 0);
-    const vehiclesAcquired = todayPurchases.filter((purchase) => purchase.type === 'VEHICLE').length;
-    const alloyWheelsToday = todayPurchases
-      .filter((purchase) => purchase.type === 'VEHICLE')
-      .reduce((sum: number, purchase) => sum + (purchase.alloyWheelsCount || 0), 0);
+    const totalSpentToday = todayPurchases.reduce((sum: number, p) => sum + p.agreedPrice, 0);
+    const vehiclesAcquired = todayPurchases.filter(p => p.type === 'VEHICLE').length;
+    const alloyWheelsToday = todayPurchases.filter(p => p.type === 'VEHICLE').reduce((sum: number, p) => sum + (p.alloyWheelsCount || 0), 0);
     const logisticsRunsToday = todayPurchases.length;
-
-    const vehicles = await prisma.vehicleInventory.findMany();
-    const expiryAlerts = vehicles
-      .map((vehicle) => {
-        const roadTaxDays = Math.ceil((new Date(vehicle.roadTaxExpiry).getTime() - Date.now()) / (1000 * 3600 * 24));
-        const insDays = Math.ceil((new Date(vehicle.insuranceExpiry).getTime() - Date.now()) / (1000 * 3600 * 24));
-        const isInspExpired = new Date(vehicle.inspectionExpiry).getTime() < Date.now();
-
-        return {
-          id: vehicle.id,
-          name: vehicle.name,
-          plateNumber: vehicle.plateNumber,
-          roadTaxDays,
-          insDays,
-          isInspExpired,
-          status: roadTaxDays <= 30 || insDays <= 15 || isInspExpired ? 'WARNING' : 'OK',
-        };
-      })
-      .filter((alert) => alert.status === 'WARNING');
-
-    // New additions: Sales, Expenses, Employees
-    const todaySales = await prisma.sale.findMany({
-      where: {
-        date: {
-          gte: today,
-        },
-      },
-    });
-    const totalSalesRevenueToday = todaySales.reduce((sum: number, sale) => sum + sale.grandTotal, 0);
+    const totalSalesRevenueToday = todaySales.reduce((sum: number, s) => sum + s.grandTotal, 0);
     const invoicesToday = todaySales.length;
+    const totalExpensesToday = todayExpenses.reduce((sum: number, e) => sum + e.amount, 0);
 
-    const todayExpenses = await prisma.expense.findMany({
-      where: {
-        date: {
-          gte: today,
-        },
-      },
-    });
-    const totalExpensesToday = todayExpenses.reduce((sum: number, expense) => sum + expense.amount, 0);
-
-    const activeEmployeesCount = await prisma.employee.count({
-      where: {
-        status: 'Active',
-      },
-    });
+    const expiryAlerts = vehicles
+      .map(v => ({
+        id: v.id,
+        name: v.name,
+        plateNumber: v.plateNumber,
+        roadTaxDays: Math.ceil((new Date(v.roadTaxExpiry).getTime() - Date.now()) / 86400000),
+        insDays: Math.ceil((new Date(v.insuranceExpiry).getTime() - Date.now()) / 86400000),
+        isInspExpired: new Date(v.inspectionExpiry).getTime() < Date.now(),
+      }))
+      .filter(a => a.roadTaxDays <= 30 || a.insDays <= 15 || a.isInspExpired);
 
     return NextResponse.json({
       totalSpentToday,

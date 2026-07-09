@@ -8,10 +8,8 @@ import {
   Truck, 
   Car, 
   AlertTriangle,
-  CheckCircle,
   ShieldCheck,
   FileText,
-  Activity,
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw
@@ -67,7 +65,8 @@ export default function OverviewDashboard() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort('timeout'), 10000);
+    let cancelled = false;
 
     async function fetchData() {
       try {
@@ -75,28 +74,35 @@ export default function OverviewDashboard() {
         setError(null);
         const [statsRes, logsRes, cashRes] = await Promise.all([
           fetch('/api/dashboard', { signal: controller.signal }),
-          fetch('/api/auditlogs', { signal: controller.signal }),
-          fetch('/api/cashbook', { signal: controller.signal }),
+          fetch('/api/auditlogs?limit=8', { signal: controller.signal }),
+          fetch('/api/cashbook?limit=6', { signal: controller.signal }),
         ]);
         clearTimeout(timeoutId);
-        
         if (!statsRes.ok) throw new Error(`Dashboard API error: ${statsRes.status}`);
         const [statsData, logsData, cashData] = await Promise.all([
           statsRes.json(), logsRes.json(), cashRes.json()
         ]);
+        if (cancelled) return;
         setStats(statsData);
         setLogs(Array.isArray(logsData) ? logsData.slice(0, 8) : []);
         setCashFlow(Array.isArray(cashData) ? cashData.slice(0, 6) : []);
       } catch (err: any) {
-        console.error('Error fetching dashboard stats:', err);
-        setError(err.name === 'AbortError' ? 'Request timed out. Please try again.' : (err.message || 'Failed to load dashboard data.'));
+        if (cancelled) return;
+        if (err.name === 'AbortError') {
+          if (controller.signal.reason === 'timeout') {
+            setError('Request timed out. Please try again.');
+          }
+          return;
+        }
+        setError(err.message || 'Failed to load dashboard data.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     fetchData();
 
     return () => {
+      cancelled = true;
       clearTimeout(timeoutId);
       controller.abort();
     };

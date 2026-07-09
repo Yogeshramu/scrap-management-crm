@@ -7,7 +7,7 @@ const accessSecret = new TextEncoder().encode(process.env.JWT_SECRET || 'access-
 // Public paths — no auth required
 const PUBLIC_PATHS = ['/', '/login'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always allow static assets and auth API

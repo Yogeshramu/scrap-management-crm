@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         year: parseInt(year) || new Date().getFullYear(),
         roadTaxExpiry: new Date(roadTaxExpiry),
         insuranceExpiry: new Date(insuranceExpiry),
-        inspectionExpiry: new Date(inspectionExpiry || Date.now()),
+        inspectionExpiry: new Date(inspectionExpiry || new Date()),
         status: 'Active',
         roadTaxPdf: roadTaxPdf || '',
         insurancePdf: insurancePdf || '',

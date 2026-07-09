@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { 
   Truck, 
   DollarSign, 
-  Activity, 
   CheckSquare, 
   Square,
   CheckCircle,
@@ -12,6 +11,7 @@ import {
   CreditCard,
   Download,
   Pencil,
+  Plus,
   Save,
   X
 } from 'lucide-react';
@@ -50,6 +50,11 @@ export default function TransportersPage() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Add transporter state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newTransName, setNewTransName] = useState('');
+  const [newTransPhone, setNewTransPhone] = useState('');
+
   // Edit transporter state
   const [editingTransporter, setEditingTransporter] = useState<TransportSummary | null>(null);
   const [editTransName, setEditTransName] = useState('');
@@ -78,6 +83,26 @@ export default function TransportersPage() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleAddTransporter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/transporters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newTransName, phone: newTransPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add transporter');
+      setMessage({ type: 'success', text: `Transporter ${newTransName} added.` });
+      setNewTransName('');
+      setNewTransPhone('');
+      setShowAddModal(false);
+      fetchTransporterSummaries();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
     }
   };
 
@@ -183,6 +208,9 @@ export default function TransportersPage() {
           <h1>Driver & Transporter Settlement Portal</h1>
           <p className="page-title-desc">Coordinate external rented towing partners. Select multiple dispatch jobs and generate CSV balances declarations sheets.</p>
         </div>
+        <button className="btn-primary" onClick={() => setShowAddModal(true)}>
+          <Plus size={16} /> Add Transporter
+        </button>
       </div>
 
       {message && (
@@ -411,6 +439,32 @@ export default function TransportersPage() {
           </div>
         </>
       )}
+      {/* Add Transporter Modal */}
+      {showAddModal && (
+        <div className="overlay">
+          <div className="modal-content">
+            <div className="flex-between" style={{ marginBottom: '20px' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>Add New Transporter</h2>
+              <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowAddModal(false)}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleAddTransporter} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-group">
+                <label>Company Name</label>
+                <input type="text" className="form-input" value={newTransName} onChange={(e) => setNewTransName(e.target.value)} required />
+              </div>
+              <div className="form-group">
+                <label>Phone</label>
+                <input type="text" className="form-input" value={newTransPhone} onChange={(e) => setNewTransPhone(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn-outline" onClick={() => setShowAddModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Add Transporter</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Edit Transporter Modal */}
       {editingTransporter && (
         <div className="overlay">

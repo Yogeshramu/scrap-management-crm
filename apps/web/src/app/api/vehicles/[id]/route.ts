@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const vehicle = await prisma.vehicleInventory.findUnique({
+      where: { id: parseInt(id) },
+      include: { maintenanceLogs: true, fuelLogs: true },
+    });
+    if (!vehicle) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
+    return NextResponse.json(vehicle);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;

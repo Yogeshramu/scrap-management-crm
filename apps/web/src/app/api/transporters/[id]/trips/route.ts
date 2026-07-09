@@ -7,13 +7,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     const trips = await prisma.purchase.findMany({
       where: {
         transportCompanyId: parseInt(id),
+        transportTripFee: { not: null },
       },
-      include: {
-        supplier: true,
-      },
+      include: { supplier: true },
       orderBy: { date: 'desc' },
     });
-
     return NextResponse.json(trips);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
