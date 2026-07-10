@@ -8,7 +8,8 @@ export async function GET(req: NextRequest) {
 
     const records = await prisma.cashBook.findMany({
       orderBy: { date: 'desc' },
-      ...(limit ? { take: parseInt(limit, 10) } : {}),
+      take: Math.min(parseInt(limit || '50', 10), 100),
+      select: { id: true, date: true, type: true, category: true, amount: true, referenceId: true, description: true },
     });
 
     return NextResponse.json(records);

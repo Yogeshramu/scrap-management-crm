@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireRole } from '@/lib/rbac';
 
 async function generateNextSaleId() {
   const currentYear = new Date().getFullYear();
@@ -14,7 +15,12 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
     const list = await prisma.sale.findMany({
       take: limit,
-      include: { customer: { select: { id: true, name: true } }, products: true },
+      select: {
+        id: true, date: true, grandTotal: true, paymentStatus: true,
+        paymentReceived: true, balanceDue: true,
+        customer: { select: { id: true, name: true } },
+        products: { select: { id: true, product: true, quantity: true, unit: true, price: true, amount: true } },
+      },
       orderBy: { date: 'desc' },
     });
     return NextResponse.json(list);
@@ -24,6 +30,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const { customerId, paymentStatus, paymentReceived, customerBillPhoto, products } = await req.json();
     const customer = await prisma.customer.findUnique({ where: { id: parseInt(customerId) } });

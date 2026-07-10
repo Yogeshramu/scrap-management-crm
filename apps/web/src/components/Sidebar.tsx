@@ -34,13 +34,13 @@ const allLinks = [
   { href: '/sales', label: 'Sales Outbound', icon: TrendingUp },
   { href: '/transport', label: 'Transporters Lot', icon: Truck },
   { href: '/vehicles', label: 'Fleet & Alerts', icon: CalendarMinus2 },
-  { href: '/employees', label: 'Employees', icon: Users, role: 'ADMIN' },
+  { href: '/employees', label: 'Employees', icon: Users, role: 'MANAGER' },
   { href: '/suppliers', label: 'Suppliers', icon: Building2 },
   { href: '/customers', label: 'Customers', icon: UserCheck },
-  { href: '/expenses', label: 'Expenses', icon: CreditCard, role: 'ADMIN' },
+  { href: '/expenses', label: 'Expenses', icon: CreditCard, role: 'MANAGER' },
   { href: '/attendance', label: 'Attendance', icon: CalendarDays },
-  { href: '/salary', label: 'Salary', icon: Banknote, role: 'ADMIN' },
-  { href: '/reports', label: 'Reports', icon: BarChart3, role: 'ADMIN' },
+  { href: '/salary', label: 'Salary', icon: Banknote, role: 'MANAGER' },
+  { href: '/reports', label: 'Reports', icon: BarChart3, role: 'MANAGER' },
   { href: '/users', label: 'User Management', icon: ShieldCheck, role: 'ADMIN' },
 ];
 
@@ -64,10 +64,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     router.refresh();
   };
 
+  const roleRank: Record<string, number> = { STAFF: 0, MANAGER: 1, ADMIN: 2 };
   const visibleLinks = allLinks.filter(link => {
     if (!link.role) return true;
-    if (user && user.role !== 'STAFF') return true; // ADMIN or MANAGER
-    return false; // hide restricted links from STAFF
+    if (!user) return false;
+    return (roleRank[user.role] ?? 0) >= (roleRank[link.role] ?? 0);
   });
 
   return (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireRole } from '@/lib/rbac';
 
 async function generateNextPurchaseId() {
   const currentYear = new Date().getFullYear();
@@ -21,6 +22,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const body = await req.json();
     const { type, supplierId, pickupLocation, logisticsMethod, driverName, agreedPrice, paymentStatus, paymentMethod,

@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
       const vehicle = await prisma.vehicleInventory.findUnique({
         where: { id: parseInt(id) },
         include: {
-          maintenanceLogs: { orderBy: { date: 'desc' }, take: 20 },
-          fuelLogs: { orderBy: { date: 'desc' }, take: 20 },
+          maintenanceLogs: { orderBy: { date: 'desc' }, take: 10 },
+          fuelLogs: { orderBy: { date: 'desc' }, take: 10 },
         },
       });
       return NextResponse.json(vehicle);

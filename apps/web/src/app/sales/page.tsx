@@ -17,6 +17,7 @@ import {
   X
 } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
+import { SkeletonBox } from '../../components/Skeleton';
 
 interface ProductItem {
   product: string;
@@ -65,6 +66,7 @@ export default function SalesPage() {
   ]);
 
   // Status and Modal settings
+  const [salesLoading, setSalesLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [newCustName, setNewCustName] = useState('');
@@ -85,14 +87,18 @@ export default function SalesPage() {
   }, []);
 
   const fetchData = async () => {
+    setSalesLoading(true);
     try {
-      const custRes = await fetch('/api/sales/customers');
+      const [custRes, salesRes] = await Promise.all([
+        fetch('/api/sales/customers'),
+        fetch('/api/sales'),
+      ]);
       setCustomers(await custRes.json());
-
-      const salesRes = await fetch('/api/sales');
       setSales(await salesRes.json());
     } catch (err) {
       console.error(err);
+    } finally {
+      setSalesLoading(false);
     }
   };
 
@@ -433,7 +439,23 @@ export default function SalesPage() {
           </h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {sales.length === 0 ? (
+            {salesLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <SkeletonBox w="110px" h="14px" />
+                    <SkeletonBox w="60px" h="20px" style={{ borderRadius: '6px' }} />
+                  </div>
+                  <SkeletonBox w="70%" h="13px" />
+                  <SkeletonBox w="90%" h="12px" />
+                  <SkeletonBox w="80%" h="12px" />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+                    <SkeletonBox w="80px" h="12px" />
+                    <SkeletonBox w="90px" h="14px" />
+                  </div>
+                </div>
+              ))
+            ) : sales.length === 0 ? (
               <p style={{ color: '#64748b', fontSize: '0.9rem' }}>No invoices dispatched yet.</p>
             ) : (
               sales.map(s => (

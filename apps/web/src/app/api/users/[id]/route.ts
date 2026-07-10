@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireRole } from '@/lib/rbac';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const deny = await requireRole(req, 'ADMIN');
+  if (deny) return deny;
   try {
     const { id } = await params;
     const { name, role, password } = await req.json();
@@ -28,6 +31,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const deny = await requireRole(req, 'ADMIN');
+  if (deny) return deny;
   try {
     const { id } = await params;
     const existing = await prisma.user.findUnique({ where: { id: parseInt(id) } });

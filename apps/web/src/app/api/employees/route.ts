@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
+import { requireRole } from '../../../lib/rbac';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const employees = await prisma.employee.findMany({
       orderBy: { createdAt: 'desc' },
@@ -13,6 +16,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const body = await req.json();
     const { name, icNumber, phone, position, department, salary, bankAccount, bankName, joinDate } = body;

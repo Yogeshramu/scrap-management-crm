@@ -1,19 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { 
-  TrendingDown, 
-  TrendingUp,
-  Users,
-  Truck, 
-  Car, 
-  AlertTriangle,
-  ShieldCheck,
-  FileText,
-  ArrowUpRight,
-  ArrowDownRight,
-  RefreshCw
+import {
+  TrendingDown, TrendingUp, Users, Truck, Car,
+  AlertTriangle, ShieldCheck, FileText,
+  ArrowUpRight, ArrowDownRight, RefreshCw
 } from 'lucide-react';
+import { SkeletonMetricCard, SkeletonTableRows, SkeletonBox } from '../../components/Skeleton';
 
 interface Alert {
   id: number;
@@ -122,9 +115,41 @@ export default function OverviewDashboard() {
       </div>
 
       {loading && !stats ? (
-        <div style={{ padding: '80px', textAlign: 'center', opacity: 0.7, fontSize: '1.1rem' }}>
-          Querying database systems...
-        </div>
+        <>
+          <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonMetricCard key={i} />)}
+          </div>
+          <div className="dashboard-layout-main">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div className="glass-panel">
+                <SkeletonBox w="40%" h="18px" style={{ marginBottom: '20px' }} />
+                <table className="custom-table"><tbody><SkeletonTableRows cols={6} rows={6} /></tbody></table>
+              </div>
+              <div className="glass-panel">
+                <SkeletonBox w="40%" h="18px" style={{ marginBottom: '20px' }} />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '16px', padding: '16px', marginBottom: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
+                    <SkeletonBox w="36px" h="36px" style={{ borderRadius: '8px', flexShrink: 0 }} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <SkeletonBox w="60%" h="14px" />
+                      <SkeletonBox w="90%" h="12px" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div className="glass-panel">
+                <SkeletonBox w="50%" h="18px" style={{ marginBottom: '16px' }} />
+                {Array.from({ length: 3 }).map((_, i) => <SkeletonBox key={i} h="60px" style={{ marginBottom: '10px' }} />)}
+              </div>
+              <div className="glass-panel">
+                <SkeletonBox w="40%" h="18px" style={{ marginBottom: '16px' }} />
+                {Array.from({ length: 3 }).map((_, i) => <SkeletonBox key={i} h="44px" style={{ marginBottom: '10px' }} />)}
+              </div>
+            </div>
+          </div>
+        </>
       ) : error ? (
         <div style={{ padding: '80px', textAlign: 'center', color: '#ef4444', fontSize: '1rem' }}>
           {error} — <button onClick={() => setRefreshKey(p => p + 1)} style={{ background: 'none', border: 'none', color: '#c9a84c', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>

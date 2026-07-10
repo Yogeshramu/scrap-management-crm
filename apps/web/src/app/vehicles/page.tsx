@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
+import { SkeletonTableRows, SkeletonBox } from '../../components/Skeleton';
 
 interface MaintenanceLog {
   id: number;
@@ -291,7 +292,26 @@ export default function VehiclesPage() {
       {currentVehicle && (
         <div className="dashboard-layout-main">
           {logsLoading ? (
-            <div style={{ padding: '60px', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>Loading vehicle details...</div>
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                <div className="glass-panel">
+                  <SkeletonBox w="50%" h="18px" style={{ marginBottom: '20px' }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                    {Array.from({ length: 3 }).map((_, i) => <SkeletonBox key={i} h="90px" style={{ borderRadius: '12px' }} />)}
+                  </div>
+                </div>
+                <div className="glass-panel">
+                  <SkeletonBox w="40%" h="18px" style={{ marginBottom: '20px' }} />
+                  <table className="custom-table"><tbody><SkeletonTableRows cols={4} rows={4} /></tbody></table>
+                  <SkeletonBox w="40%" h="18px" style={{ margin: '24px 0 20px' }} />
+                  <table className="custom-table"><tbody><SkeletonTableRows cols={4} rows={3} /></tbody></table>
+                </div>
+              </div>
+              <div className="glass-panel" style={{ height: 'fit-content' }}>
+                <SkeletonBox w="50%" h="18px" style={{ marginBottom: '16px' }} />
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonBox key={i} h="14px" style={{ marginBottom: '14px' }} />)}
+              </div>
+            </>
           ) : (<>
           {/* Left panel: vehicle details and action logs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>

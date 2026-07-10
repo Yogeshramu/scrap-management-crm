@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireRole } from '@/lib/rbac';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const deny = await requireRole(req, 'ADMIN');
+  if (deny) return deny;
   try {
     const users = await prisma.user.findMany({
       select: { id: true, username: true, name: true, role: true, createdAt: true },
@@ -14,6 +17,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const deny = await requireRole(req, 'ADMIN');
+  if (deny) return deny;
   try {
     const { username, password, name, role } = await req.json();
     if (!username || !password || !name) {

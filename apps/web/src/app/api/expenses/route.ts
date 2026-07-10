@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
+import { requireRole } from '../../../lib/rbac';
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,6 +21,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const body = await req.json();
     const { date, category, description, amount, paymentMethod, paidTo, referenceId } = body;

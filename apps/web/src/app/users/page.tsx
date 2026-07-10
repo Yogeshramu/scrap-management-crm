@@ -24,6 +24,21 @@ const ROLE_COLORS: Record<string, string> = {
   STAFF: '#10b981',
 };
 
+const PERMISSION_MATRIX = [
+  { module: 'Purchases',       staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Sales',           staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Suppliers',       staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Customers',       staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Transport',       staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Vehicles',        staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Attendance',      staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Employees',       staffRead: false, staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Expenses',        staffRead: false, staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Salary',          staffRead: false, staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'Reports',         staffRead: false, staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
+  { module: 'User Management', staffRead: false, staffWrite: false, managerRead: false, managerWrite: false, adminRead: true,  adminWrite: true  },
+];
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -98,28 +113,49 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Role legend */}
-      <div className="glass-panel" style={{ marginBottom: '24px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-          <div style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '8px', borderRadius: '8px' }}><ShieldCheck size={18} /></div>
-          <div>
-            <p style={{ fontWeight: 700, color: '#ef4444', fontSize: '0.9rem' }}>ADMIN</p>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Full access including user management</p>
-          </div>
+      {/* Jenkins-style Permission Matrix */}
+      <div className="glass-panel" style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <ShieldCheck size={18} style={{ color: '#c9a84c' }} />
+          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Role Permission Matrix</h2>
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-          <div style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', padding: '8px', borderRadius: '8px' }}><ShieldCheck size={18} /></div>
-          <div>
-            <p style={{ fontWeight: 700, color: '#f59e0b', fontSize: '0.9rem' }}>MANAGER</p>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>All modules: purchases, sales, salary, reports</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-          <div style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '8px', borderRadius: '8px' }}><ShieldCheck size={18} /></div>
-          <div>
-            <p style={{ fontWeight: 700, color: '#10b981', fontSize: '0.9rem' }}>STAFF</p>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Purchases, sales, attendance — no salary/reports/expenses</p>
-          </div>
+        <div className="table-wrapper">
+          <table className="custom-table" style={{ textAlign: 'center' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', minWidth: '160px' }}>Module / Permission</th>
+                <th colSpan={2} style={{ color: '#10b981' }}>STAFF</th>
+                <th colSpan={2} style={{ color: '#f59e0b' }}>MANAGER</th>
+                <th colSpan={2} style={{ color: '#ef4444' }}>ADMIN</th>
+              </tr>
+              <tr>
+                <th style={{ textAlign: 'left', fontSize: '0.75rem', color: '#64748b' }}>— item permissions —</th>
+                {['Read','Write','Read','Write','Read','Write'].map((p, i) => (
+                  <th key={i} style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>{p}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PERMISSION_MATRIX.map(row => (
+                <tr key={row.module}>
+                  <td style={{ textAlign: 'left', fontWeight: 600, color: '#cbd5e1' }}>{row.module}</td>
+                  {(['staffRead','staffWrite','managerRead','managerWrite','adminRead','adminWrite'] as const).map(key => (
+                    <td key={key}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: '20px', height: '20px', borderRadius: '4px', fontSize: '13px',
+                        background: row[key] ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.08)',
+                        border: row[key] ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(239,68,68,0.2)',
+                        color: row[key] ? '#10b981' : '#ef4444',
+                      }}>
+                        {row[key] ? '✓' : '✕'}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

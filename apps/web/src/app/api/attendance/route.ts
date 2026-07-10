@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
+import { requireRole } from '../../../lib/rbac';
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,9 +30,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const body = await req.json();
-    const { records } = body; // [{ employeeId, date, status }]
+    const { records } = body;
     if (!Array.isArray(records) || records.length === 0) {
       return NextResponse.json({ error: 'Records array required' }, { status: 400 });
     }

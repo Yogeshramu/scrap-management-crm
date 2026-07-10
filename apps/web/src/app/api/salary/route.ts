@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
+import { requireRole } from '../../../lib/rbac';
 
 export async function GET(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const { searchParams } = new URL(req.url);
     const month = searchParams.get('month');
@@ -22,6 +25,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const body = await req.json();
     const { employeeId, month, year, workingDays, presentDays, overtimeHours, overtimeRate, advances } = body;
@@ -56,6 +61,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const deny = await requireRole(req, 'MANAGER');
+  if (deny) return deny;
   try {
     const body = await req.json();
     const { id, status } = body;
