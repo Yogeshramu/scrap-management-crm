@@ -404,7 +404,7 @@ export default function SalesPage() {
               <div className="image-preview-box">
                 <Camera size={26} />
                 <span style={{ fontSize: '0.85rem' }}>Attached Receipt / Customer ID Proof</span>
-                <code style={{ fontSize: '0.75rem', color: '#0ea5e9' }}>{customerBillPhoto}</code>
+                <code style={{ fontSize: '0.75rem', color: '#e8d5a3' }}>{customerBillPhoto}</code>
               </div>
             </div>
           </div>
@@ -428,7 +428,7 @@ export default function SalesPage() {
         {/* Right: Master Sales invoices ledger */}
         <div className="glass-panel" style={{ maxHeight: '900px', overflowY: 'auto' }}>
           <h2 style={{ fontSize: '1.25rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <TrendingUp size={20} style={{ color: '#0ea5e9' }} />
+            <TrendingUp size={20} style={{ color: '#e8d5a3' }} />
             Wholesale Outflow Ledger
           </h2>
 
@@ -450,7 +450,7 @@ export default function SalesPage() {
                   }}
                 >
                   <div className="flex-between">
-                    <code style={{ fontSize: '0.85rem', color: '#0ea5e9', fontWeight: 700 }}>{s.id}</code>
+                    <code style={{ fontSize: '0.85rem', color: '#e8d5a3', fontWeight: 700 }}>{s.id}</code>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className={`badge ${s.paymentStatus === 'PAID' ? 'badge-success' : s.paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`}>
                         {s.paymentStatus}
@@ -494,7 +494,7 @@ export default function SalesPage() {
         <div className="overlay">
           <div className="modal-content">
             <div className="flex-between" style={{ marginBottom: '20px' }}>
-              <h2 className="modal-title" style={{ margin: 0 }}>Edit Sale — <code style={{ color: '#0ea5e9' }}>{editingSale.id}</code></h2>
+              <h2 className="modal-title" style={{ margin: 0 }}>Edit Sale — <code style={{ color: '#e8d5a3' }}>{editingSale.id}</code></h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingSale(null)}><X size={20} /></button>
             </div>
             <form onSubmit={handleEditSaleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

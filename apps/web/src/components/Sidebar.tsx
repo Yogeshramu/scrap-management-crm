@@ -104,33 +104,32 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </ul>
 
-      {/* Footer */}
+      {/* Footer — expanded */}
       <div className="sidebar-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <UserCircle size={24} style={{ color: '#6366f1' }} />
-            {!collapsed && (
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{user.name}</p>
-                <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{user.role}</p>
-              </div>
-            )}
-            {!collapsed && (
-              <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Logout">
-                <LogOut size={16} />
-              </button>
-            )}
+            <UserCircle size={24} style={{ color: '#c9a84c' }} />
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{user.name}</p>
+              <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{user.role}</p>
+            </div>
+            <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Logout">
+              <LogOut size={16} />
+            </button>
           </div>
         ) : (
           <p className="sidebar-footer-sub">Loading...</p>
         )}
-        
-        {collapsed && user && (
-          <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', justifyContent: 'center' }} title="Logout">
+      </div>
+
+      {/* Logout btn — collapsed only, outside hidden footer */}
+      {collapsed && user && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '12px 0', display: 'flex', justifyContent: 'center' }}>
+          <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '42px', height: '42px', borderRadius: '10px' }} title="Logout">
             <LogOut size={18} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }

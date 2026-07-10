@@ -30,13 +30,13 @@ function getPresetDates(preset: DatePreset): { from: string; to: string } {
 }
 
 const REPORT_TYPES: { key: ReportType; label: string; icon: any; color: string }[] = [
-  { key: 'sales', label: 'Sales', icon: TrendingUp, color: '#0ea5e9' },
-  { key: 'purchases', label: 'Purchases', icon: TrendingDown, color: '#6366f1' },
+  { key: 'sales', label: 'Sales', icon: TrendingUp, color: '#e8d5a3' },
+  { key: 'purchases', label: 'Purchases', icon: TrendingDown, color: '#c9a84c' },
   { key: 'expenses', label: 'Expenses', icon: CreditCard, color: '#ef4444' },
   { key: 'salary', label: 'Salary', icon: Users, color: '#10b981' },
   { key: 'employees', label: 'Employees', icon: Users, color: '#f59e0b' },
-  { key: 'suppliers', label: 'Suppliers', icon: Building2, color: '#8b5cf6' },
-  { key: 'customers', label: 'Customers', icon: UserCheck, color: '#06b6d4' },
+  { key: 'suppliers', label: 'Suppliers', icon: Building2, color: '#d4af6a' },
+  { key: 'customers', label: 'Customers', icon: UserCheck, color: '#e8d5a3' },
 ];
 
 export default function ReportsPage() {

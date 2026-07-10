@@ -115,7 +115,7 @@ export default function SalaryPage() {
       <div className="metrics-grid" style={{ marginBottom: '32px' }}>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Payroll</h3><div className="metric-value">B$ {totalNet.toFixed(2)}</div></div>
-          <div className="metric-icon-wrap" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}><Banknote size={22} /></div>
+          <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76,0.1)', color: '#c9a84c' }}><Banknote size={22} /></div>
         </div>
         <div className="metric-card">
           <div className="metric-info"><h3>Paid Out</h3><div className="metric-value" style={{ color: '#10b981' }}>B$ {totalPaid.toFixed(2)}</div></div>

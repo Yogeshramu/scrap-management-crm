@@ -70,7 +70,7 @@ export default function SuppliersPage() {
       <div className="metrics-grid" style={{ marginBottom: '32px' }}>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Suppliers</h3><div className="metric-value">{suppliers.length}</div></div>
-          <div className="metric-icon-wrap" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}><Building2 size={22} /></div>
+          <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76,0.1)', color: '#c9a84c' }}><Building2 size={22} /></div>
         </div>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Outstanding Advances</h3><div className="metric-value" style={{ color: totalAdvance > 0 ? '#f59e0b' : '#10b981' }}>B$ {totalAdvance.toFixed(2)}</div></div>
@@ -97,7 +97,7 @@ export default function SuppliersPage() {
                 <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No suppliers registered.</td></tr>
               ) : suppliers.map(s => (
                 <tr key={s.id}>
-                  <td><code style={{ color: '#6366f1', background: 'rgba(99,102,241,0.08)', padding: '2px 6px', borderRadius: '4px' }}>SUP-{String(s.id).padStart(3, '0')}</code></td>
+                  <td><code style={{ color: '#c9a84c', background: 'rgba(201, 168, 76,0.08)', padding: '2px 6px', borderRadius: '4px' }}>SUP-{String(s.id).padStart(3, '0')}</code></td>
                   <td style={{ fontWeight: 600, color: '#fff' }}>{s.name}</td>
                   <td style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={13} style={{ opacity: 0.5 }} />{s.contact || '—'}</td>
                   <td style={{ fontSize: '0.85rem' }}>{s.bankName ? `${s.bankName}${s.bankAccount ? ` ···${s.bankAccount.slice(-4)}` : ''}` : '—'}</td>

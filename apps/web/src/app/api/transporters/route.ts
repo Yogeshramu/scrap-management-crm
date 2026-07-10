@@ -3,28 +3,22 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const companies = await prisma.transportCompany.findMany({
-      include: { trips: true, payments: true },
-    });
+    const [companies, allTrips] = await Promise.all([
+      prisma.transportCompany.findMany({ select: { id: true, name: true, phone: true } }),
+      prisma.purchase.groupBy({
+        by: ['transportCompanyId', 'transportPaymentStatus'],
+        where: { transportCompanyId: { not: null }, transportTripFee: { not: null } },
+        _sum: { transportTripFee: true },
+        _count: { id: true },
+      }),
+    ]);
 
     const summary = companies.map((company) => {
-      const validTrips = company.trips.filter(t => t.transportTripFee != null);
-      const totalTrips = validTrips.length;
-      const totalAmount = validTrips.reduce((sum, t) => sum + (t.transportTripFee ?? 0), 0);
-      const paidAmount = validTrips
-        .filter(t => t.transportPaymentStatus === 'PAID')
-        .reduce((sum, t) => sum + (t.transportTripFee ?? 0), 0);
-      const outstanding = totalAmount - paidAmount;
-
-      return {
-        id: company.id,
-        name: company.name,
-        phone: company.phone,
-        totalTrips,
-        totalAmount,
-        paid: paidAmount,
-        outstanding,
-      };
+      const rows = allTrips.filter(r => r.transportCompanyId === company.id);
+      const totalTrips = rows.reduce((s, r) => s + r._count.id, 0);
+      const totalAmount = rows.reduce((s, r) => s + (r._sum.transportTripFee ?? 0), 0);
+      const paid = rows.filter(r => r.transportPaymentStatus === 'PAID').reduce((s, r) => s + (r._sum.transportTripFee ?? 0), 0);
+      return { id: company.id, name: company.name, phone: company.phone, totalTrips, totalAmount, paid, outstanding: totalAmount - paid };
     });
 
     return NextResponse.json(summary);

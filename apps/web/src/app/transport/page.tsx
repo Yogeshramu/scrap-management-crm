@@ -78,12 +78,8 @@ export default function TransportersPage() {
       const res = await fetch('/api/transporters');
       const data = await res.json();
       setSummaries(data);
-      if (data.length > 0 && !selectedCompanyId) {
-        setSelectedCompanyId(data[0].id.toString());
-      }
-    } catch (err) {
-      console.error(err);
-    }
+      if (data.length > 0 && !selectedCompanyId) setSelectedCompanyId(data[0].id.toString());
+    } catch (err) { console.error(err); }
   };
 
   const handleAddTransporter = async (e: React.FormEvent) => {
@@ -106,15 +102,15 @@ export default function TransportersPage() {
     }
   };
 
+  const [tripsLoading, setTripsLoading] = useState(false);
+
   const fetchTrips = async (id: number) => {
+    setTripsLoading(true);
     try {
       const res = await fetch(`/api/transporters/${id}/trips`);
-      const data = await res.json();
-      setTrips(data);
+      setTrips(await res.json());
       setSelectedTrips([]);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); } finally { setTripsLoading(false); }
   };
 
   const handleToggleTrip = (tripId: string) => {
@@ -253,7 +249,7 @@ export default function TransportersPage() {
                 <h3>Total Transport Jobs</h3>
                 <div className="metric-value">{currentSummary.totalTrips} Runs</div>
               </div>
-              <div className="metric-icon-wrap" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76, 0.1)', color: '#c9a84c' }}>
                 <Truck size={22} />
               </div>
             </div>
@@ -263,7 +259,7 @@ export default function TransportersPage() {
                 <h3>Logistics Billing Total</h3>
                 <div className="metric-value">B$ {currentSummary.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
               </div>
-              <div className="metric-icon-wrap" style={{ background: 'rgba(14, 165, 233, 0.1)', color: '#0ea5e9' }}>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(232, 213, 163, 0.1)', color: '#e8d5a3' }}>
                 <DollarSign size={22} />
               </div>
             </div>
@@ -336,6 +332,9 @@ export default function TransportersPage() {
               </div>
 
               <div className="table-wrapper">
+                {tripsLoading ? (
+                  <div style={{ padding: '40px', textAlign: 'center', opacity: 0.5 }}>Loading trips...</div>
+                ) : (
                 <table className="custom-table">
                   <thead>
                     <tr>
@@ -363,7 +362,7 @@ export default function TransportersPage() {
                               {canSettle ? (
                                 <span 
                                   onClick={() => handleToggleTrip(trip.id)} 
-                                  style={{ cursor: 'pointer', color: isSelected ? '#6366f1' : '#64748b', display: 'flex', alignItems: 'center' }}
+                                  style={{ cursor: 'pointer', color: isSelected ? '#c9a84c' : '#64748b', display: 'flex', alignItems: 'center' }}
                                 >
                                   {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
                                 </span>
@@ -393,6 +392,7 @@ export default function TransportersPage() {
                     )}
                   </tbody>
                 </table>
+                )}
               </div>
             </div>
 

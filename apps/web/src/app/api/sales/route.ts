@@ -8,11 +8,14 @@ async function generateNextSaleId() {
   return `SAL-${currentYear}-${nextNum}`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
     const list = await prisma.sale.findMany({
-      include: { customer: true, products: true },
-      orderBy: { date: 'desc' }
+      take: limit,
+      include: { customer: { select: { id: true, name: true } }, products: true },
+      orderBy: { date: 'desc' },
     });
     return NextResponse.json(list);
   } catch (e: any) {

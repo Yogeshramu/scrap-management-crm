@@ -9,8 +9,20 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
         transportCompanyId: parseInt(id),
         transportTripFee: { not: null },
       },
-      include: { supplier: true },
+      select: {
+        id: true,
+        type: true,
+        date: true,
+        pickupLocation: true,
+        agreedPrice: true,
+        vehicleModel: true,
+        lotName: true,
+        transportTripFee: true,
+        transportPaymentStatus: true,
+        supplier: { select: { name: true } },
+      },
       orderBy: { date: 'desc' },
+      take: 100,
     });
     return NextResponse.json(trips);
   } catch (e: any) {

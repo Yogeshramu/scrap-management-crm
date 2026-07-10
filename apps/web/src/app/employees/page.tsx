@@ -83,7 +83,7 @@ export default function EmployeesPage() {
       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '32px' }}>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Staff</h3><div className="metric-value">{employees.length}</div></div>
-          <div className="metric-icon-wrap" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}><Users size={22} /></div>
+          <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76,0.1)', color: '#c9a84c' }}><Users size={22} /></div>
         </div>
         <div className="metric-card">
           <div className="metric-info"><h3>Active</h3><div className="metric-value">{active}</div></div>
@@ -91,7 +91,7 @@ export default function EmployeesPage() {
         </div>
         <div className="metric-card">
           <div className="metric-info"><h3>Monthly Payroll</h3><div className="metric-value">B$ {employees.filter(e => e.status === 'Active').reduce((s, e) => s + e.salary, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div></div>
-          <div className="metric-icon-wrap" style={{ background: 'rgba(14,165,233,0.1)', color: '#0ea5e9' }}><CreditCard size={22} /></div>
+          <div className="metric-icon-wrap" style={{ background: 'rgba(232, 213, 163,0.1)', color: '#e8d5a3' }}><CreditCard size={22} /></div>
         </div>
       </div>
 
@@ -117,7 +117,7 @@ export default function EmployeesPage() {
                 <tr><td colSpan={10} style={{ textAlign: 'center', color: '#64748b' }}>No employees registered yet.</td></tr>
               ) : employees.map(e => (
                 <tr key={e.id}>
-                  <td><code style={{ color: '#6366f1', background: 'rgba(99,102,241,0.08)', padding: '2px 6px', borderRadius: '4px' }}>{e.employeeId}</code></td>
+                  <td><code style={{ color: '#c9a84c', background: 'rgba(201, 168, 76,0.08)', padding: '2px 6px', borderRadius: '4px' }}>{e.employeeId}</code></td>
                   <td style={{ fontWeight: 600, color: '#fff' }}>{e.name}</td>
                   <td>{e.position || '—'}</td>
                   <td>{e.department || '—'}</td>

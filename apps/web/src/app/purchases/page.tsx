@@ -877,7 +877,7 @@ export default function PurchasesPage() {
               <div className="image-preview-box">
                 <Camera size={26} />
                 <span style={{ fontSize: '0.85rem' }}>Proof of Pile / Asset Photo Captured</span>
-                <code style={{ fontSize: '0.75rem', color: '#6366f1' }}>
+                <code style={{ fontSize: '0.75rem', color: '#c9a84c' }}>
                   {type === 'VEHICLE' ? vehiclePhoto : scrapPhoto}
                 </code>
               </div>
@@ -904,7 +904,7 @@ export default function PurchasesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div className="glass-panel" style={{ maxHeight: '900px', overflowY: 'auto' }}>
             <h2 style={{ fontSize: '1.25rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShoppingBag size={20} style={{ color: '#6366f1' }} />
+              <ShoppingBag size={20} style={{ color: '#c9a84c' }} />
               Live Purchases Log
             </h2>
 
@@ -926,7 +926,7 @@ export default function PurchasesPage() {
                     }}
                   >
                     <div className="flex-between">
-                      <code style={{ fontSize: '0.85rem', color: '#6366f1', fontWeight: 700 }}>{p.id}</code>
+                      <code style={{ fontSize: '0.85rem', color: '#c9a84c', fontWeight: 700 }}>{p.id}</code>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className={`badge ${p.paymentStatus === 'PAID' ? 'badge-success' : p.paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`}>
                           {p.paymentStatus}
@@ -971,7 +971,7 @@ export default function PurchasesPage() {
         <div className="overlay">
           <div className="modal-content" style={{ maxWidth: '680px' }}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
-              <h2 className="modal-title" style={{ margin: 0 }}>Edit Purchase — <code style={{ color: '#6366f1' }}>{editingPurchase.id}</code></h2>
+              <h2 className="modal-title" style={{ margin: 0 }}>Edit Purchase — <code style={{ color: '#c9a84c' }}>{editingPurchase.id}</code></h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingPurchase(null)}><X size={20} /></button>
             </div>
             <form onSubmit={handleEditSubmit}>

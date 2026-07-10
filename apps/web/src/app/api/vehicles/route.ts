@@ -1,16 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (id) {
+      const vehicle = await prisma.vehicleInventory.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          maintenanceLogs: { orderBy: { date: 'desc' }, take: 20 },
+          fuelLogs: { orderBy: { date: 'desc' }, take: 20 },
+        },
+      });
+      return NextResponse.json(vehicle);
+    }
+
     const list = await prisma.vehicleInventory.findMany({
-      include: {
-        maintenanceLogs: true,
-        fuelLogs: true,
+      select: {
+        id: true, name: true, type: true, plateNumber: true, brand: true,
+        model: true, year: true, status: true,
+        roadTaxExpiry: true, insuranceExpiry: true, inspectionExpiry: true,
+        roadTaxPdf: true, insurancePdf: true, registrationCardPdf: true, inspectionPdf: true,
       },
       orderBy: { name: 'asc' },
     });
-
     return NextResponse.json(list);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

@@ -55,9 +55,12 @@ interface Vehicle {
   fuelLogs: FuelLog[];
 }
 
+type VehicleSummary = Omit<Vehicle, 'maintenanceLogs' | 'fuelLogs'>;
+
 export default function VehiclesPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [vehicles, setVehicles] = useState<VehicleSummary[]>([]);
+  const [currentVehicle, setCurrentVehicle] = useState<Vehicle | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
   
   // Registration form
   const [name, setName] = useState('');
@@ -88,7 +91,7 @@ export default function VehiclesPage() {
   const [showFuelModal, setShowFuelModal] = useState(false);
 
   // Edit vehicle state
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<VehicleSummary | null>(null);
   const [editVName, setEditVName] = useState('');
   const [editVType, setEditVType] = useState('');
   const [editVBrand, setEditVBrand] = useState('');
@@ -102,7 +105,7 @@ export default function VehiclesPage() {
     fetchVehicles();
   }, []);
 
-  const openEditVehicle = (v: Vehicle) => {
+  const openEditVehicle = (v: VehicleSummary) => {
     setEditingVehicle(v);
     setEditVName(v.name);
     setEditVType(v.type);
@@ -128,6 +131,7 @@ export default function VehiclesPage() {
       setMessage({ type: 'success', text: `Vehicle ${editVName} updated.` });
       setEditingVehicle(null);
       fetchVehicles();
+      fetchVehicleDetail(editingVehicle.id);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     }
@@ -138,12 +142,16 @@ export default function VehiclesPage() {
       const res = await fetch('/api/vehicles');
       const data = await res.json();
       setVehicles(data);
-      if (data.length > 0 && !selectedVehicleId) {
-        setSelectedVehicleId(data[0].id.toString());
-      }
-    } catch (err) {
-      console.error(err);
-    }
+      if (data.length > 0 && !currentVehicle) fetchVehicleDetail(data[0].id);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchVehicleDetail = async (id: number) => {
+    setLogsLoading(true);
+    try {
+      const res = await fetch(`/api/vehicles?id=${id}`);
+      setCurrentVehicle(await res.json());
+    } catch (err) { console.error(err); } finally { setLogsLoading(false); }
   };
 
   const handleRegisterVehicle = async (e: React.FormEvent) => {
@@ -165,19 +173,11 @@ export default function VehiclesPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to register vehicle');
 
       setMessage({ type: 'success', text: `Registered brand new fleet vehicle: ${name} [${plateNumber}]` });
-      
-      // Reset
-      setName('');
-      setPlateNumber('');
-      setBrand('');
-      setModel('');
-      setRoadTaxExpiry('');
-      setInsuranceExpiry('');
-      setInspectionExpiry('');
+      setName(''); setPlateNumber(''); setBrand(''); setModel('');
+      setRoadTaxExpiry(''); setInsuranceExpiry(''); setInspectionExpiry('');
       setShowVehicleModal(false);
-      
       await fetchVehicles();
-      setSelectedVehicleId(data.id.toString());
+      fetchVehicleDetail(data.id);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     }
@@ -190,7 +190,7 @@ export default function VehiclesPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/vehicles/${selectedVehicleId}/maintenance`, {
+      const res = await fetch(`/api/vehicles/${currentVehicle?.id}/maintenance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -201,12 +201,9 @@ export default function VehiclesPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to log maintenance work');
 
       setMessage({ type: 'success', text: `Maintenance logged successfully!` });
-      setMaintDate('');
-      setMaintService('');
-      setMaintCost('');
-      setMaintWorkshop('');
+      setMaintDate(''); setMaintService(''); setMaintCost(''); setMaintWorkshop('');
       setShowMaintModal(false);
-      fetchVehicles();
+      if (currentVehicle) fetchVehicleDetail(currentVehicle.id);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     }
@@ -219,7 +216,7 @@ export default function VehiclesPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/vehicles/${selectedVehicleId}/fuel`, {
+      const res = await fetch(`/api/vehicles/${currentVehicle?.id}/fuel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -230,23 +227,15 @@ export default function VehiclesPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to register fuel log');
 
       setMessage({ type: 'success', text: `Fuel purchase logged successfully!` });
-      setFuelDate('');
-      setFuelAmount('');
-      setFuelCost('');
-      setFuelOdometer('');
+      setFuelDate(''); setFuelAmount(''); setFuelCost(''); setFuelOdometer('');
       setShowFuelModal(false);
-      fetchVehicles();
+      if (currentVehicle) fetchVehicleDetail(currentVehicle.id);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     }
   };
 
-  const currentVehicle = vehicles.find(v => v.id === parseInt(selectedVehicleId));
-
-  // Expiry calculation helper
-  const getDaysDiff = (dateStr: string) => {
-    return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 3600 * 24));
-  };
+  const getDaysDiff = (dateStr: string) => Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 3600 * 24));
 
   return (
     <div>
@@ -285,8 +274,8 @@ export default function VehiclesPage() {
           return (
             <div 
               key={v.id} 
-              className={`tab-nav ${selectedVehicleId === v.id.toString() ? 'active' : ''}`}
-              onClick={() => setSelectedVehicleId(v.id.toString())}
+              className={`tab-nav ${currentVehicle?.id === v.id ? 'active' : ''}`}
+              onClick={() => fetchVehicleDetail(v.id)}
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               <span>{v.name}</span>
@@ -301,6 +290,9 @@ export default function VehiclesPage() {
 
       {currentVehicle && (
         <div className="dashboard-layout-main">
+          {logsLoading ? (
+            <div style={{ padding: '60px', textAlign: 'center', opacity: 0.5, gridColumn: '1/-1' }}>Loading vehicle details...</div>
+          ) : (<>
           {/* Left panel: vehicle details and action logs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             
@@ -324,7 +316,7 @@ export default function VehiclesPage() {
                   <span style={{ fontSize: '0.85rem', fontWeight: 650, color: getDaysDiff(currentVehicle.roadTaxExpiry) <= 30 ? '#ef4444' : '#10b981' }}>
                     {getDaysDiff(currentVehicle.roadTaxExpiry) <= 30 ? `Renew in ${getDaysDiff(currentVehicle.roadTaxExpiry)} days` : 'Active / Verified'}
                   </span>
-                  {currentVehicle.roadTaxPdf && <small style={{ color: '#6366f1', fontSize: '0.75rem', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FileText size={12} /> Attached: road_tax.pdf</small>}
+                  {currentVehicle.roadTaxPdf && <small style={{ color: '#c9a84c', fontSize: '0.75rem', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FileText size={12} /> Attached: road_tax.pdf</small>}
                 </div>
 
                 {/* Insurance Card */}
@@ -342,7 +334,7 @@ export default function VehiclesPage() {
                   <span style={{ fontSize: '0.85rem', fontWeight: 650, color: getDaysDiff(currentVehicle.insuranceExpiry) <= 15 ? '#ef4444' : '#10b981' }}>
                     {getDaysDiff(currentVehicle.insuranceExpiry) <= 15 ? `Renew in ${getDaysDiff(currentVehicle.insuranceExpiry)} days` : 'Active / Verified'}
                   </span>
-                  {currentVehicle.insurancePdf && <small style={{ color: '#6366f1', fontSize: '0.75rem', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FileText size={12} /> Attached: insurance.pdf</small>}
+                  {currentVehicle.insurancePdf && <small style={{ color: '#c9a84c', fontSize: '0.75rem', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FileText size={12} /> Attached: insurance.pdf</small>}
                 </div>
 
                 {/* Inspection Card */}
@@ -360,7 +352,7 @@ export default function VehiclesPage() {
                   <span style={{ fontSize: '0.85rem', fontWeight: 650, color: new Date(currentVehicle.inspectionExpiry).getTime() < Date.now() ? '#ef4444' : '#10b981' }}>
                     {new Date(currentVehicle.inspectionExpiry).getTime() < Date.now() ? 'Overdue / Inspection Required' : 'Active / Verified'}
                   </span>
-                  {currentVehicle.inspectionPdf && <small style={{ color: '#6366f1', fontSize: '0.75rem', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FileText size={12} /> Attached: inspection.pdf</small>}
+                  {currentVehicle.inspectionPdf && <small style={{ color: '#c9a84c', fontSize: '0.75rem', marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><FileText size={12} /> Attached: inspection.pdf</small>}
                 </div>
 
               </div>
@@ -456,7 +448,7 @@ export default function VehiclesPage() {
               </div>
               <div className="flex-between">
                 <span>Plate Serial Number:</span>
-                <code style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px', color: '#6366f1' }}>
+                <code style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px', color: '#c9a84c' }}>
                   {currentVehicle.plateNumber}
                 </code>
               </div>
@@ -500,6 +492,7 @@ export default function VehiclesPage() {
               </div>
             </div>
           </div>
+          </>)}
         </div>
       )}
 

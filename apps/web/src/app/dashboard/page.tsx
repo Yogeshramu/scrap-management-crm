@@ -127,7 +127,7 @@ export default function OverviewDashboard() {
         </div>
       ) : error ? (
         <div style={{ padding: '80px', textAlign: 'center', color: '#ef4444', fontSize: '1rem' }}>
-          {error} — <button onClick={() => setRefreshKey(p => p + 1)} style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>
+          {error} — <button onClick={() => setRefreshKey(p => p + 1)} style={{ background: 'none', border: 'none', color: '#c9a84c', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>
         </div>
       ) : (
         <>
@@ -135,9 +135,9 @@ export default function OverviewDashboard() {
             <div className="metric-card">
               <div className="metric-info">
                 <h3>Today's Revenue</h3>
-                <div className="metric-value" style={{ color: '#0ea5e9' }}>B$ {stats?.totalSalesRevenueToday.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div className="metric-value" style={{ color: '#e8d5a3' }}>B$ {stats?.totalSalesRevenueToday.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </div>
-              <div className="metric-icon-wrap" style={{ background: 'rgba(14, 165, 233, 0.1)', color: '#0ea5e9' }}>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(232, 213, 163, 0.1)', color: '#e8d5a3' }}>
                 <TrendingUp size={22} />
               </div>
             </div>
@@ -167,7 +167,7 @@ export default function OverviewDashboard() {
                 <h3>Vehicles Processed</h3>
                 <div className="metric-value">{stats?.vehiclesAcquired} Units</div>
               </div>
-              <div className="metric-icon-wrap" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76, 0.1)', color: '#c9a84c' }}>
                 <Car size={22} />
               </div>
             </div>
@@ -187,7 +187,7 @@ export default function OverviewDashboard() {
                 <h3>Logistics Runs</h3>
                 <div className="metric-value">{stats?.logisticsRunsToday} Scheduled</div>
               </div>
-              <div className="metric-icon-wrap" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
+              <div className="metric-icon-wrap" style={{ background: 'rgba(212, 175, 106, 0.1)', color: '#d4af6a' }}>
                 <Truck size={22} />
               </div>
             </div>
@@ -260,7 +260,7 @@ export default function OverviewDashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {logs.map(log => (
                     <div key={log.id} style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', width: '36px', height: '36px', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(201, 168, 76, 0.1)', color: '#c9a84c', width: '36px', height: '36px', borderRadius: '8px' }}>
                         <FileText size={18} />
                       </div>
                       <div style={{ flex: 1 }}>
@@ -271,7 +271,7 @@ export default function OverviewDashboard() {
                           </span>
                         </div>
                         <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginTop: '4px' }}>{log.details}</p>
-                        <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '6px' }}>Performed by: <span style={{ color: '#6366f1', fontWeight: 500 }}>{log.performedBy}</span></p>
+                        <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '6px' }}>Performed by: <span style={{ color: '#c9a84c', fontWeight: 500 }}>{log.performedBy}</span></p>
                       </div>
                     </div>
                   ))}

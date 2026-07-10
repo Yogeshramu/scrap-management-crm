@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withRetry } from '@/lib/retry';
 
+const MS_PER_DAY = 86400000;
+
 export async function GET() {
   try {
     const today = new Date();
@@ -19,20 +21,22 @@ export async function GET() {
 
     const totalSpentToday = todayPurchases.reduce((sum: number, p) => sum + p.agreedPrice, 0);
     const vehiclesAcquired = todayPurchases.filter(p => p.type === 'VEHICLE').length;
-    const alloyWheelsToday = todayPurchases.filter(p => p.type === 'VEHICLE').reduce((sum: number, p) => sum + (p.alloyWheelsCount || 0), 0);
-    const logisticsRunsToday = todayPurchases.length;
+    const alloyWheelsToday = todayPurchases.reduce((sum: number, p) => sum + (p.alloyWheelsCount || 0), 0);
+    const logisticsRunsToday = todayPurchases.filter(p => p.type === 'LOGISTICS').length;
     const totalSalesRevenueToday = todaySales.reduce((sum: number, s) => sum + s.grandTotal, 0);
     const invoicesToday = todaySales.length;
     const totalExpensesToday = todayExpenses.reduce((sum: number, e) => sum + e.amount, 0);
 
+    const now = Date.now();
     const expiryAlerts = vehicles
+      .filter(v => v.roadTaxExpiry && v.insuranceExpiry && v.inspectionExpiry)
       .map(v => ({
         id: v.id,
         name: v.name,
         plateNumber: v.plateNumber,
-        roadTaxDays: Math.ceil((new Date(v.roadTaxExpiry).getTime() - Date.now()) / 86400000),
-        insDays: Math.ceil((new Date(v.insuranceExpiry).getTime() - Date.now()) / 86400000),
-        isInspExpired: new Date(v.inspectionExpiry).getTime() < Date.now(),
+        roadTaxDays: Math.ceil((new Date(v.roadTaxExpiry).getTime() - now) / MS_PER_DAY),
+        insDays: Math.ceil((new Date(v.insuranceExpiry).getTime() - now) / MS_PER_DAY),
+        isInspExpired: new Date(v.inspectionExpiry).getTime() < now,
       }))
       .filter(a => a.roadTaxDays <= 30 || a.insDays <= 15 || a.isInspExpired);
 
@@ -48,8 +52,9 @@ export async function GET() {
       totalExpensesToday,
       activeEmployeesCount,
     });
-  } catch (e: any) {
-    console.error("Error in /api/dashboard/route.ts:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Internal server error';
+    console.error('Error in /api/dashboard/route.ts:', e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

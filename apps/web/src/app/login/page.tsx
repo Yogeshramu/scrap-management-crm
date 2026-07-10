@@ -2,14 +2,22 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, User } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const fillAdminCredentials = () => {
+    setUsername('admin');
+    setPassword('Admin@1234');
+    setShowPassword(true);
+    setError('');
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +59,33 @@ export default function LoginPage() {
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={fillAdminCredentials}
+          style={{
+            width: '100%',
+            marginBottom: '20px',
+            padding: '14px 16px',
+            borderRadius: '14px',
+            border: '1px solid rgba(201, 168, 76, 0.25)',
+            background: 'linear-gradient(135deg, rgba(201, 168, 76, 0.16), rgba(232, 213, 163, 0.08))',
+            color: '#f5f0e8',
+            cursor: 'pointer',
+            textAlign: 'left',
+            boxShadow: '0 10px 28px rgba(0, 0, 0, 0.22)',
+          }}
+        >
+          <div style={{ fontSize: '0.75rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#e8d5a3', marginBottom: '6px' }}>
+            Quick Fill
+          </div>
+          <div style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '4px' }}>
+            Admin credentials
+          </div>
+          <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+            Username: admin · Password: Admin@1234
+          </div>
+        </button>
+
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Username</label>
@@ -76,10 +111,34 @@ export default function LoginPage() {
               <div style={{ position: 'absolute', top: '50%', left: '16px', transform: 'translateY(-50%)', color: '#64748b' }}>
                 <Lock size={18} />
               </div>
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  right: '14px',
+                  transform: 'translateY(-50%)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  borderRadius: '999px',
+                }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
               <input 
-                type="password" 
+                type={showPassword ? 'text' : 'password'} 
                 className="form-input" 
-                style={{ paddingLeft: '44px' }}
+                style={{ paddingLeft: '44px', paddingRight: '56px' }}
                 placeholder="Enter password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

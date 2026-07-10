@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
   PRESENT: '#10b981',
   ABSENT: '#ef4444',
   HALF_DAY: '#f59e0b',
-  LEAVE: '#6366f1',
+  LEAVE: '#c9a84c',
 };
 const STATUS_SHORT: Record<string, string> = {
   PRESENT: 'P',
@@ -145,17 +145,17 @@ export default function AttendancePage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${200 + daysInMonth * 36}px` }}>
             <thead>
               <tr>
-                <th style={{ padding: '12px 16px', textAlign: 'left', background: 'rgba(15,23,42,0.5)', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', left: 0, zIndex: 1, minWidth: '180px' }}>Employee</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', background: 'rgba(10, 9, 7, 0.6)', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', left: 0, zIndex: 1, minWidth: '180px' }}>Employee</th>
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
                   const dow = new Date(year, month - 1, d).getDay();
                   const isWeekend = dow === 0 || dow === 6;
                   return (
-                    <th key={d} style={{ padding: '8px 4px', textAlign: 'center', background: 'rgba(15,23,42,0.5)', color: isWeekend ? '#6366f1' : '#94a3b8', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.06)', minWidth: '32px' }}>
+                    <th key={d} style={{ padding: '8px 4px', textAlign: 'center', background: 'rgba(10, 9, 7, 0.6)', color: isWeekend ? '#c9a84c' : '#94a3b8', fontSize: '0.75rem', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.06)', minWidth: '32px' }}>
                       {d}
                     </th>
                   );
                 })}
-                <th style={{ padding: '12px 16px', textAlign: 'center', background: 'rgba(15,23,42,0.5)', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)', minWidth: '60px' }}>Present</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', background: 'rgba(10, 9, 7, 0.6)', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)', minWidth: '60px' }}>Present</th>
               </tr>
             </thead>
             <tbody>
@@ -166,7 +166,7 @@ export default function AttendancePage() {
                 }).length;
                 return (
                   <tr key={emp.id}>
-                    <td style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', position: 'sticky', left: 0, background: '#090b11', zIndex: 1 }}>
+                    <td style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', position: 'sticky', left: 0, background: '#0a0a0a', zIndex: 1 }}>
                       <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.9rem' }}>{emp.name}</div>
                       <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{emp.employeeId} · {emp.position || '—'}</div>
                     </td>
