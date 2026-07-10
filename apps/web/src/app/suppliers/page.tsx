@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Building2, Save, X, Pencil, Phone, AlertTriangle } from 'lucide-react';
+import Checklist from '@/components/Checklist';
+
+const DEFAULT_CHECKLIST = [
+  { label: 'IC Copy received', checked: false },
+  { label: 'Agreement signed', checked: false },
+  { label: 'Bank details verified', checked: false },
+];
 
 interface Supplier {
   id: number;
@@ -20,7 +27,8 @@ export default function SuppliersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [form, setForm] = useState({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '', documents: '' });
+  const [form, setForm] = useState({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '' });
+  const [docChecklist, setDocChecklist] = useState(DEFAULT_CHECKLIST);
 
   useEffect(() => { fetchSuppliers(); }, []);
 
@@ -29,15 +37,15 @@ export default function SuppliersPage() {
     setSuppliers(await res.json());
   };
 
-  const openAdd = () => { setEditing(null); setForm({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '', documents: '' }); setShowModal(true); };
-  const openEdit = (s: Supplier) => { setEditing(s); setForm({ name: s.name, contact: s.contact || '', outstandingAdvance: s.outstandingAdvance.toString(), bankName: s.bankName || '', bankAccount: s.bankAccount || '', documents: s.documents || '' }); setShowModal(true); };
+  const openAdd = () => { setEditing(null); setForm({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '' }); setDocChecklist(DEFAULT_CHECKLIST); setShowModal(true); };
+  const openEdit = (s: Supplier) => { setEditing(s); setForm({ name: s.name, contact: s.contact || '', outstandingAdvance: s.outstandingAdvance.toString(), bankName: s.bankName || '', bankAccount: s.bankAccount || '' }); setDocChecklist(s.documents ? JSON.parse(s.documents) : DEFAULT_CHECKLIST); setShowModal(true); };
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     try {
       const url = editing ? `/api/suppliers/${editing.id}` : '/api/suppliers';
       const method = editing ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, contact: form.contact, outstandingAdvance: parseFloat(form.outstandingAdvance) || 0, bankName: form.bankName || null, bankAccount: form.bankAccount || null, documents: form.documents || null }) });
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, contact: form.contact, outstandingAdvance: parseFloat(form.outstandingAdvance) || 0, bankName: form.bankName || null, bankAccount: form.bankAccount || null, documents: JSON.stringify(docChecklist) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMessage({ type: 'success', text: editing ? `Updated ${form.name}` : `Supplier ${form.name} registered.` });
@@ -148,8 +156,8 @@ export default function SuppliersPage() {
                 <input type="text" className="form-input" placeholder="e.g. 01-234567-8" value={form.bankAccount} onChange={e => setForm({ ...form, bankAccount: e.target.value })} />
               </div>
               <div className="form-group">
-                <label>Documents / Notes</label>
-                <input type="text" className="form-input" placeholder="e.g. IC copy, agreement doc URL" value={form.documents} onChange={e => setForm({ ...form, documents: e.target.value })} />
+                <label>Document Checklist</label>
+                <Checklist items={docChecklist} onChange={setDocChecklist} />
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn-outline" onClick={() => setShowModal(false)}>Cancel</button>

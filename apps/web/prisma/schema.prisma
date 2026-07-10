@@ -37,11 +37,22 @@ model Purchase {
   createdBy                String?           @default("Manager")
   createdAt                DateTime          @default(now())
 
+  // General fields
+  notes                    String?
+  collectionDate           DateTime?
+  advancePaid              Float?            @default(0.0)
+
   // Specific Columns for VEHICLE mode
+  vehicleBrand             String?
   vehicleModel             String?
+  registrationNo           String?
+  otherInfo                String?
   engineIntact             Boolean?
   gearboxPresent           Boolean?
   catalyticConverter       Boolean?
+  battery                  Boolean?
+  radiator                 Boolean?
+  wiring                   Boolean?
   alloyWheelsCount         Int?              @default(0)
   vehiclePhoto             String?           // Image file/URL
 

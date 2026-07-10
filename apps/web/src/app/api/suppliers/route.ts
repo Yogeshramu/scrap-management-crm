@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(supplier);
   } catch (e: any) {
+    if (e.code === 'P2002') {
+      return NextResponse.json({ error: 'A supplier with this name already exists.' }, { status: 409 });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -1,25 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  Plus, 
+import { useState, useEffect, useRef } from 'react';
+import {
+  Plus,
   Car,
   Package,
   MapPin,
   User,
   Truck,
-  ShoppingBag, 
-  AlertTriangle, 
-  Save, 
-  Trash2, 
-  Camera, 
-  Clock, 
-  Check, 
+  ShoppingBag,
+  AlertTriangle,
+  Save,
+  Trash2,
+  Camera,
+  Clock,
+  Check,
   X,
   PlusCircle,
-  Pencil
+  Pencil,
+  Printer,
+  ArrowLeft,
+  FileText,
+  CalendarDays,
+  Hash,
+  Zap,
+  Wind,
+  Battery,
+  Droplets,
+  Cable,
 } from 'lucide-react';
+import { SkeletonBox } from '../../components/Skeleton';
 import CustomSelect from '../../components/CustomSelect';
+import Checklist from '../../components/Checklist';
 
 interface Supplier {
   id: number;
@@ -44,14 +56,23 @@ interface Purchase {
   logisticsMethod: string;
   driverName?: string;
   agreedPrice: number;
+  advancePaid?: number;
   previousAdvanceDeduction: number;
   cashToPay: number;
   paymentStatus: string;
   paymentMethod: string;
+  notes?: string;
+  collectionDate?: string;
+  vehicleBrand?: string;
   vehicleModel?: string;
+  registrationNo?: string;
+  otherInfo?: string;
   engineIntact?: boolean;
   gearboxPresent?: boolean;
   catalyticConverter?: boolean;
+  battery?: boolean;
+  radiator?: boolean;
+  wiring?: boolean;
   alloyWheelsCount?: number;
   vehiclePhoto?: string;
   lotName?: string;
@@ -71,250 +92,349 @@ interface LineItem {
   rate: string;
 }
 
-export default function PurchasesPage() {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [transporters, setTransporters] = useState<Transporter[]>([]);
-  
-  // Form state
-  const [type, setType] = useState<'VEHICLE' | 'LOOSE_SCRAP' | 'MIXED_SCRAP'>('VEHICLE');
-  const [supplierId, setSupplierId] = useState<string>('');
-  const [pickupLocation, setPickupLocation] = useState('');
-  const [logisticsMethod, setLogisticsMethod] = useState<'HIAB' | 'TOWING' | 'COMPANY_VEHICLE'>('HIAB');
-  const [driverName, setDriverName] = useState('');
-  const [agreedPrice, setAgreedPrice] = useState<string>('');
-  const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'PARTIAL' | 'UNPAID'>('UNPAID');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
+type LogisticsMethod = 'OUR_LORRY' | 'OUR_TOW_TRUCK' | 'HIRED_LORRY' | 'HIRED_TOW_TRUCK' | 'SUPPLIER_DELIVERED';
+type PaymentStatus = 'PAID' | 'PARTIAL' | 'UNPAID';
+type PaymentMethod = 'CASH' | 'BANK_TRANSFER';
 
-  // Mode Specific
-  const [vehicleModel, setVehicleModel] = useState('');
-  const [engineIntact, setEngineIntact] = useState<boolean>(true);
-  const [gearboxPresent, setGearboxPresent] = useState<boolean>(true);
-  const [catalyticConverter, setCatalyticConverter] = useState<boolean>(true);
-  const [alloyWheelsCount, setAlloyWheelsCount] = useState<number>(0);
-  const [vehiclePhoto, setVehiclePhoto] = useState('/uploads/hilux_front.jpg');
+// ─── Collection method cards config ───────────────────────────────────────────
+const LOGISTICS_OPTIONS: { value: LogisticsMethod; label: string; sub: string; icon: React.ReactNode }[] = [
+  { value: 'OUR_TOW_TRUCK', label: 'Our Tow Truck', sub: 'Internal fleet', icon: <Truck size={18} /> },
+  { value: 'OUR_LORRY',     label: 'Our Lorry',     sub: 'Internal lorry', icon: <Truck size={18} /> },
+  { value: 'HIRED_TOW_TRUCK', label: 'Hired Tow',   sub: 'External partner', icon: <Truck size={18} /> },
+  { value: 'HIRED_LORRY',   label: 'Hired Lorry',   sub: 'External partner', icon: <Package size={18} /> },
+  { value: 'SUPPLIER_DELIVERED', label: 'Supplier Drop-off', sub: 'Self-delivered', icon: <User size={18} /> },
+];
+
+// ─── Inline toggle component ──────────────────────────────────────────────────
+function YesNoToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="form-group" style={{ minWidth: 0 }}>
+      <label style={{ fontSize: '0.78rem' }}>{label}</label>
+      <div className="toggle-group">
+        <button type="button" className={`toggle-btn toggle-btn-yes ${value ? 'active' : ''}`} onClick={() => onChange(true)}>YES</button>
+        <button type="button" className={`toggle-btn toggle-btn-no ${!value ? 'active' : ''}`} onClick={() => onChange(false)}>NO</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Photo upload slot ────────────────────────────────────────────────────────
+function PhotoSlot({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <p style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '8px' }}>{label}</p>
+      <div
+        className="image-preview-box"
+        style={{ cursor: 'pointer', minHeight: '100px' }}
+        onClick={() => ref.current?.click()}
+      >
+        {value ? (
+          <img src={value} alt={label} style={{ maxWidth: '100%', maxHeight: '90px', borderRadius: '8px', objectFit: 'cover' }} />
+        ) : (
+          <>
+            <Camera size={22} style={{ opacity: 0.5 }} />
+            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{label}</span>
+          </>
+        )}
+      </div>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onChange(URL.createObjectURL(file));
+        }}
+      />
+    </div>
+  );
+}
+
+export default function PurchasesPage() {
+  const [purchases, setPurchases]       = useState<Purchase[]>([]);
+  const [suppliers, setSuppliers]       = useState<Supplier[]>([]);
+  const [transporters, setTransporters] = useState<Transporter[]>([]);
+  const [loading, setLoading]           = useState(true);
+
+  // Form state
+  const [type, setType]               = useState<'VEHICLE' | 'LOOSE_SCRAP' | 'MIXED_SCRAP'>('VEHICLE');
+
+  // Vehicle list (supports single + bulk in VEHICLE mode)
+  const DEFAULT_CHECKLIST = [
+    { label: 'Engine', checked: true }, { label: 'Gearbox', checked: true },
+    { label: 'Catalytic', checked: true }, { label: 'Battery', checked: true },
+    { label: 'Radiator', checked: true }, { label: 'Wiring', checked: true },
+  ];
+  interface BulkVehicle {
+    id: string; brand: string; model: string; regNo: string;
+    price: string; alloyWheels: number; otherInfo: string;
+    checklist: { label: string; checked: boolean; custom?: boolean }[];
+  }
+  const newBulkVehicle = (): BulkVehicle => ({ id: Date.now().toString(), brand: '', model: '', regNo: '', price: '', alloyWheels: 0, otherInfo: '', checklist: DEFAULT_CHECKLIST.map(i => ({ ...i })) });
+  const [bulkVehicles, setBulkVehicles] = useState<BulkVehicle[]>([newBulkVehicle()]);
+  const [expandedBulkId, setExpandedBulkId] = useState<string | null>(bulkVehicles[0]?.id ?? null);
+  const [supplierId, setSupplierId]   = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [pickupLocation, setPickupLocation] = useState('');
+  const [notes, setNotes]             = useState('');
+  const [logisticsMethod, setLogisticsMethod] = useState<LogisticsMethod>('OUR_TOW_TRUCK');
+  const [collectionDate, setCollectionDate]   = useState(new Date().toISOString().split('T')[0]);
+  const [driverName, setDriverName]   = useState('');
+  const [agreedPrice, setAgreedPrice] = useState('');
+  const [advancePaid, setAdvancePaid] = useState('0');
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('UNPAID');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
+
+  // Vehicle specific (kept for edit modal only)
+  const [vehicleBrand, setVehicleBrand]     = useState('');
+  const [vehicleModel, setVehicleModel]     = useState('');
+  const [registrationNo, setRegistrationNo] = useState('');
+  const [otherInfo, setOtherInfo]           = useState('');
+  const [componentChecklist, setComponentChecklist] = useState(DEFAULT_CHECKLIST.map(i => ({ ...i })));
+  const [alloyWheelsCount, setAlloyWheelsCount] = useState(0);
+
+  // Photo slots (3 slots per form)
+  const [photoFront, setPhotoFront]   = useState('');
+  const [photoSide, setPhotoSide]     = useState('');
+  const [photoDetail, setPhotoDetail] = useState('');
 
   // Loose Scrap specific
   const [looseMaterial, setLooseMaterial] = useState('');
-  const [looseQty, setLooseQty] = useState('');
-  const [looseUnit, setLooseUnit] = useState('KG');
-  const [looseRate, setLooseRate] = useState('');
+  const [looseQty, setLooseQty]           = useState('');
+  const [looseUnit, setLooseUnit]         = useState('KG');
+  const [looseRate, setLooseRate]         = useState('');
 
-  const [lotName, setLotName] = useState('');
-  const [scrapDescription, setScrapDescription] = useState('');
+  // Mixed Scrap specific
+  const [lotName, setLotName]                       = useState('');
+  const [scrapDescription, setScrapDescription]     = useState('');
   const [grossTonnageEstimate, setGrossTonnageEstimate] = useState('');
-  const [scrapPhoto, setScrapPhoto] = useState('/uploads/scrap_lot_3.jpg');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
   // External logistics
   const [transportCompanyId, setTransportCompanyId] = useState('');
-  const [transportTripFee, setTransportTripFee] = useState('80.00');
+  const [transportTripFee, setTransportTripFee]     = useState('80.00');
 
-  // Notification / Alert state
+  // UI state
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [previewPurchaseId, setPreviewPurchaseId] = useState('');
 
-  // Edit purchase state
+  // Generate a preview ID for display (auto-refreshed on mount)
+  useEffect(() => {
+    fetch('/api/purchases').then(r => r.json()).then((data: Purchase[]) => {
+      const year = new Date().getFullYear();
+      const yearPurchases = data.filter((p: Purchase) => p.id.startsWith(`PUR-${year}-`));
+      const lastNum = yearPurchases.length > 0 ? Math.max(...yearPurchases.map((p: Purchase) => parseInt(p.id.split('-')[2]))) : 0;
+      setPreviewPurchaseId(`PUR-${year}-${(lastNum + 1).toString().padStart(3, '0')}`);
+    }).catch(() => {
+      setPreviewPurchaseId(`PUR-${new Date().getFullYear()}-001`);
+    });
+  }, []);
+
+  // ── Edit purchase state ────────────────────────────────────────────────────
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
   const [editPickupLocation, setEditPickupLocation] = useState('');
-  const [editLogisticsMethod, setEditLogisticsMethod] = useState<'HIAB' | 'TOWING' | 'COMPANY_VEHICLE'>('HIAB');
-  const [editDriverName, setEditDriverName] = useState('');
-  const [editPaymentStatus, setEditPaymentStatus] = useState<'PAID' | 'PARTIAL' | 'UNPAID'>('UNPAID');
-  const [editPaymentMethod, setEditPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
+  const [editNotes, setEditNotes]               = useState('');
+  const [editLogisticsMethod, setEditLogisticsMethod] = useState<LogisticsMethod>('OUR_TOW_TRUCK');
+  const [editCollectionDate, setEditCollectionDate]   = useState('');
+  const [editDriverName, setEditDriverName]     = useState('');
+  const [editPaymentStatus, setEditPaymentStatus]     = useState<PaymentStatus>('UNPAID');
+  const [editPaymentMethod, setEditPaymentMethod]     = useState<PaymentMethod>('CASH');
+  const [editAdvancePaid, setEditAdvancePaid]   = useState('0');
+  const [editVehicleBrand, setEditVehicleBrand] = useState('');
   const [editVehicleModel, setEditVehicleModel] = useState('');
-  const [editEngineIntact, setEditEngineIntact] = useState(true);
-  const [editGearboxPresent, setEditGearboxPresent] = useState(true);
-  const [editCatalyticConverter, setEditCatalyticConverter] = useState(true);
+  const [editRegistrationNo, setEditRegistrationNo] = useState('');
+  const [editOtherInfo, setEditOtherInfo]       = useState('');
+  const [editComponentChecklist, setEditComponentChecklist] = useState([
+    { label: 'Engine', checked: true },
+    { label: 'Gearbox', checked: true },
+    { label: 'Catalytic', checked: true },
+    { label: 'Battery', checked: true },
+    { label: 'Radiator', checked: true },
+    { label: 'Wiring', checked: true },
+  ]);
   const [editAlloyWheelsCount, setEditAlloyWheelsCount] = useState(0);
-  const [editLotName, setEditLotName] = useState('');
+  const [editLotName, setEditLotName]           = useState('');
   const [editScrapDescription, setEditScrapDescription] = useState('');
   const [editGrossTonnageEstimate, setEditGrossTonnageEstimate] = useState('');
   const [editTransportCompanyId, setEditTransportCompanyId] = useState('');
-  const [editTransportTripFee, setEditTransportTripFee] = useState('');
+  const [editTransportTripFee, setEditTransportTripFee]     = useState('');
 
-  // New Supplier dialog
+  // ── New Supplier dialog ────────────────────────────────────────────────────
   const [showSupplierModal, setShowSupplierModal] = useState(false);
-  const [newSupName, setNewSupName] = useState('');
+  const [newSupName, setNewSupName]       = useState('');
   const [newSupContact, setNewSupContact] = useState('');
   const [newSupAdvance, setNewSupAdvance] = useState('0.00');
 
-  // Edit Supplier dialog
+  // ── Edit Supplier dialog ───────────────────────────────────────────────────
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [editSupName, setEditSupName] = useState('');
-  const [editSupContact, setEditSupContact] = useState('');
-  const [editSupAdvance, setEditSupAdvance] = useState('');
+  const [editSupName, setEditSupName]         = useState('');
+  const [editSupContact, setEditSupContact]   = useState('');
+  const [editSupAdvance, setEditSupAdvance]   = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
-      const supRes = await fetch('/api/suppliers');
-      setSuppliers(await supRes.json());
-
-      const transRes = await fetch('/api/transporters');
-      setTransporters(await transRes.json());
-
-      const purchaseRes = await fetch('/api/purchases');
-      setPurchases(await purchaseRes.json());
+      const [supRes, transRes, purchaseRes] = await Promise.all([
+        fetch('/api/suppliers'),
+        fetch('/api/transporters'),
+        fetch('/api/purchases'),
+      ]);
+      const [sups, trans, purs] = await Promise.all([supRes.json(), transRes.json(), purchaseRes.json()]);
+      setSuppliers(Array.isArray(sups) ? sups : []);
+      setTransporters(Array.isArray(trans) ? trans : []);
+      const pursList = Array.isArray(purs) ? purs : [];
+      setPurchases(pursList);
+      const year = new Date().getFullYear();
+      const yearPurchases = pursList.filter((p: Purchase) => p.id.startsWith(`PUR-${year}-`));
+      const lastNum = yearPurchases.length > 0 ? Math.max(...yearPurchases.map((p: Purchase) => parseInt(p.id.split('-')[2]))) : 0;
+      setPreviewPurchaseId(`PUR-${year}-${(lastNum + 1).toString().padStart(3, '0')}`);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSupplierChange = (idStr: string) => {
     setSupplierId(idStr);
-    const id = parseInt(idStr);
-    const match = suppliers.find(s => s.id === id) || null;
-    setSelectedSupplier(match);
+    setSelectedSupplier(suppliers.find(s => s.id === parseInt(idStr)) || null);
   };
 
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSupName) return;
     try {
-      const res = await fetch('/api/suppliers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newSupName,
-          contact: newSupContact,
-          outstandingAdvance: parseFloat(newSupAdvance) || 0
-        })
-      });
+      const res  = await fetch('/api/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSupName, contact: newSupContact, outstandingAdvance: parseFloat(newSupAdvance) || 0 }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create supplier');
-      
       setMessage({ type: 'success', text: `Created supplier card: ${newSupName}` });
       await fetchData();
       setSupplierId(data.id.toString());
       setSelectedSupplier(data);
       setShowSupplierModal(false);
-      // Reset Modal Form
-      setNewSupName('');
-      setNewSupContact('');
-      setNewSupAdvance('0.00');
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
+      setNewSupName(''); setNewSupContact(''); setNewSupAdvance('0.00');
+    } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    if (!supplierId || !pickupLocation || (type === 'VEHICLE' && agreedPrice === '')) {
+  const computedAgreedPrice =
+    type === 'MIXED_SCRAP' ? lineItems.reduce((acc, item) => acc + (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0), 0)
+    : type === 'LOOSE_SCRAP' ? (parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)
+    : type === 'VEHICLE' ? bulkVehicles.reduce((s, v) => s + (parseFloat(v.price) || 0), 0)
+    : parseFloat(agreedPrice) || 0;
+
+  const calculatedAdvanceDeduction = selectedSupplier ? Math.min(selectedSupplier.outstandingAdvance, computedAgreedPrice) : 0;
+  const advancePaidNum  = parseFloat(advancePaid) || 0;
+  const balanceDue      = Math.max(0, computedAgreedPrice - calculatedAdvanceDeduction - advancePaidNum);
+
+  const handleFormSubmit = async (e: React.FormEvent, print = false) => {
+    e.preventDefault();
+    if (!supplierId || !pickupLocation) {
       setMessage({ type: 'error', text: 'Please complete all required fields.' });
       return;
     }
-
     try {
-      const body: any = {
-        type,
-        supplierId: parseInt(supplierId),
-        pickupLocation,
-        logisticsMethod,
-        driverName,
-        paymentStatus,
-        paymentMethod,
-        agreedPrice: computedAgreedPrice,
+      const isHired = logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY';
+      const sharedBase: any = {
+        supplierId: parseInt(supplierId), pickupLocation, notes, logisticsMethod,
+        collectionDate, driverName, paymentStatus, paymentMethod, advancePaid: advancePaidNum,
+        vehiclePhoto: [photoFront, photoSide, photoDetail].filter(Boolean).join(','),
       };
-
-      if (logisticsMethod === 'TOWING') {
-        body.transportCompanyId = transportCompanyId ? parseInt(transportCompanyId) : null;
-        body.transportTripFee = parseFloat(transportTripFee) || 0;
+      if (isHired) {
+        sharedBase.transportCompanyId = transportCompanyId ? parseInt(transportCompanyId) : null;
+        sharedBase.transportTripFee   = parseFloat(transportTripFee) || 0;
       }
 
       if (type === 'VEHICLE') {
-        body.vehicleModel = vehicleModel;
-        body.engineIntact = engineIntact;
-        body.gearboxPresent = gearboxPresent;
-        body.catalyticConverter = catalyticConverter;
-        body.alloyWheelsCount = alloyWheelsCount;
-        body.vehiclePhoto = vehiclePhoto;
-      } else if (type === 'LOOSE_SCRAP') {
-        body.lotName = looseMaterial;
-        body.scrapDescription = `${looseQty} ${looseUnit} @ B$${looseRate}/${looseUnit}`;
-        body.grossTonnageEstimate = parseFloat(looseQty) || 0;
-        body.scrapPhoto = scrapPhoto;
-        body.lineItems = [{ id: '1', material: looseMaterial, qty: looseQty, unit: looseUnit, rate: looseRate }];
+        if (bulkVehicles.length === 0) { setMessage({ type: 'error', text: 'Add at least one vehicle.' }); return; }
+        const results: string[] = [];
+        for (const v of bulkVehicles) {
+          const cl = v.checklist;
+          const body = { ...sharedBase, type: 'VEHICLE', agreedPrice: parseFloat(v.price) || 0,
+            vehicleBrand: v.brand, vehicleModel: v.model, registrationNo: v.regNo,
+            otherInfo: v.otherInfo, alloyWheelsCount: v.alloyWheels,
+            engineIntact:       cl.find(i => i.label === 'Engine')?.checked ?? true,
+            gearboxPresent:     cl.find(i => i.label === 'Gearbox')?.checked ?? true,
+            catalyticConverter: cl.find(i => i.label === 'Catalytic')?.checked ?? true,
+            battery:            cl.find(i => i.label === 'Battery')?.checked ?? true,
+            radiator:           cl.find(i => i.label === 'Radiator')?.checked ?? true,
+            wiring:             cl.find(i => i.label === 'Wiring')?.checked ?? true,
+          };
+          const res = await fetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          const data = await res.json();
+          if (!res.ok) throw new Error(`${v.brand} ${v.model}: ${data.error}`);
+          results.push(data.id);
+        }
+        setMessage({ type: 'success', text: `${results.length} vehicle${results.length > 1 ? 's' : ''} recorded: ${results.join(', ')}` });
+        const first = newBulkVehicle();
+        setBulkVehicles([first]); setExpandedBulkId(first.id);
       } else {
-        body.lotName = lotName;
-        body.scrapDescription = scrapDescription;
-        body.grossTonnageEstimate = parseFloat(grossTonnageEstimate) || 0;
-        body.scrapPhoto = scrapPhoto;
-        body.lineItems = lineItems;
+        const body: any = { ...sharedBase, type, agreedPrice: computedAgreedPrice };
+        if (type === 'LOOSE_SCRAP') {
+          body.lotName = looseMaterial;
+          body.scrapDescription = `${looseQty} ${looseUnit} @ B$${looseRate}/${looseUnit}`;
+          body.grossTonnageEstimate = parseFloat(looseQty) || 0;
+          body.scrapPhoto = [photoFront, photoSide, photoDetail].filter(Boolean).join(',');
+          body.lineItems  = [{ id: '1', material: looseMaterial, qty: looseQty, unit: looseUnit, rate: looseRate }];
+        } else {
+          Object.assign(body, { lotName, scrapDescription, grossTonnageEstimate: parseFloat(grossTonnageEstimate) || 0, scrapPhoto: [photoFront, photoSide, photoDetail].filter(Boolean).join(','), lineItems });
+        }
+        const res  = await fetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to record purchase');
+        setMessage({ type: 'success', text: `Purchase recorded: ${data.id}` });
       }
-
-      const res = await fetch('/api/purchases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to record purchase');
-
-      setMessage({ type: 'success', text: `Purchase recorded successfully with Ref ID: ${data.id}` });
-      
-      // Reset form variables
-      setPickupLocation('');
-      setDriverName('');
-      setAgreedPrice('');
-      setVehicleModel('');
-      setLotName('');
-      setScrapDescription('');
-      setGrossTonnageEstimate('');
-      setAlloyWheelsCount(0);
-      setLineItems([]);
-      setLooseMaterial('');
-      setLooseQty('');
-      setLooseRate('');
-      setSelectedSupplier(null);
-      setSupplierId('');
-      
-      // Reload lists
-      fetchData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
+      // Reset shared fields
+      setPickupLocation(''); setNotes(''); setDriverName(''); setAgreedPrice(''); setAdvancePaid('0');
+      setLineItems([]); setLooseMaterial(''); setLooseQty(''); setLooseRate('');
+      setPhotoFront(''); setPhotoSide(''); setPhotoDetail('');
+      setSelectedSupplier(null); setSupplierId('');
+      const first = newBulkVehicle(); setBulkVehicles([first]); setExpandedBulkId(first.id);
+      await fetchData();
+      if (print) window.print();
+    } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
-  // Autodeduction computation indicators
-  const openEditSupplier = (s: Supplier) => {
-    setEditingSupplier(s);
-    setEditSupName(s.name);
-    setEditSupContact(s.contact || '');
-    setEditSupAdvance(s.outstandingAdvance.toString());
-  };
+  const openEditSupplier = (s: Supplier) => { setEditingSupplier(s); setEditSupName(s.name); setEditSupContact(s.contact || ''); setEditSupAdvance(s.outstandingAdvance.toString()); };
 
   const handleEditSupplierSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSupplier) return;
     try {
-      const res = await fetch(`/api/suppliers/${editingSupplier.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editSupName, contact: editSupContact, outstandingAdvance: parseFloat(editSupAdvance) || 0 })
-      });
+      const res  = await fetch(`/api/suppliers/${editingSupplier.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editSupName, contact: editSupContact, outstandingAdvance: parseFloat(editSupAdvance) || 0 }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update supplier');
       setMessage({ type: 'success', text: `Supplier ${editSupName} updated.` });
       setEditingSupplier(null);
       fetchData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
+    } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
   const openEditModal = (p: Purchase) => {
     setEditingPurchase(p);
     setEditPickupLocation(p.pickupLocation);
-    setEditLogisticsMethod(p.logisticsMethod as any);
+    setEditNotes(p.notes || '');
+    setEditLogisticsMethod(p.logisticsMethod as LogisticsMethod);
+    setEditCollectionDate(p.collectionDate ? p.collectionDate.split('T')[0] : '');
     setEditDriverName(p.driverName || '');
-    setEditPaymentStatus(p.paymentStatus as any);
-    setEditPaymentMethod(p.paymentMethod as any);
+    setEditPaymentStatus(p.paymentStatus as PaymentStatus);
+    setEditPaymentMethod(p.paymentMethod as PaymentMethod);
+    setEditAdvancePaid(p.advancePaid?.toString() || '0');
+    setEditVehicleBrand(p.vehicleBrand || '');
     setEditVehicleModel(p.vehicleModel || '');
-    setEditEngineIntact(p.engineIntact ?? true);
-    setEditGearboxPresent(p.gearboxPresent ?? true);
-    setEditCatalyticConverter(p.catalyticConverter ?? true);
+    setEditRegistrationNo(p.registrationNo || '');
+    setEditOtherInfo(p.otherInfo || '');
+    setEditComponentChecklist([
+      { label: 'Engine',    checked: p.engineIntact ?? true },
+      { label: 'Gearbox',   checked: p.gearboxPresent ?? true },
+      { label: 'Catalytic', checked: p.catalyticConverter ?? true },
+      { label: 'Battery',   checked: p.battery ?? true },
+      { label: 'Radiator',  checked: p.radiator ?? true },
+      { label: 'Wiring',    checked: p.wiring ?? true },
+    ]);
     setEditAlloyWheelsCount(p.alloyWheelsCount ?? 0);
     setEditLotName(p.lotName || '');
     setEditScrapDescription(p.scrapDescription || '');
@@ -327,636 +447,554 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!editingPurchase) return;
     try {
+      const isHired = editLogisticsMethod === 'HIRED_TOW_TRUCK' || editLogisticsMethod === 'HIRED_LORRY';
       const body: any = {
-        pickupLocation: editPickupLocation,
-        logisticsMethod: editLogisticsMethod,
-        driverName: editDriverName,
-        paymentStatus: editPaymentStatus,
-        paymentMethod: editPaymentMethod,
+        pickupLocation: editPickupLocation, notes: editNotes, logisticsMethod: editLogisticsMethod,
+        collectionDate: editCollectionDate, driverName: editDriverName,
+        paymentStatus: editPaymentStatus, paymentMethod: editPaymentMethod,
+        advancePaid: parseFloat(editAdvancePaid) || 0,
       };
       if (editingPurchase.type === 'VEHICLE') {
-        body.vehicleModel = editVehicleModel;
-        body.engineIntact = editEngineIntact;
-        body.gearboxPresent = editGearboxPresent;
-        body.catalyticConverter = editCatalyticConverter;
-        body.alloyWheelsCount = editAlloyWheelsCount;
+        const cl = editComponentChecklist;
+        Object.assign(body, { vehicleBrand: editVehicleBrand, vehicleModel: editVehicleModel, registrationNo: editRegistrationNo, otherInfo: editOtherInfo, alloyWheelsCount: editAlloyWheelsCount,
+          engineIntact:       cl.find(i => i.label === 'Engine')?.checked ?? true,
+          gearboxPresent:     cl.find(i => i.label === 'Gearbox')?.checked ?? true,
+          catalyticConverter: cl.find(i => i.label === 'Catalytic')?.checked ?? true,
+          battery:            cl.find(i => i.label === 'Battery')?.checked ?? true,
+          radiator:           cl.find(i => i.label === 'Radiator')?.checked ?? true,
+          wiring:             cl.find(i => i.label === 'Wiring')?.checked ?? true,
+        });
       } else {
-        body.lotName = editLotName;
-        body.scrapDescription = editScrapDescription;
-        body.grossTonnageEstimate = parseFloat(editGrossTonnageEstimate) || 0;
+        Object.assign(body, { lotName: editLotName, scrapDescription: editScrapDescription, grossTonnageEstimate: parseFloat(editGrossTonnageEstimate) || 0 });
       }
-      if (editLogisticsMethod === 'TOWING') {
+      if (isHired) {
         body.transportCompanyId = editTransportCompanyId ? parseInt(editTransportCompanyId) : null;
-        body.transportTripFee = parseFloat(editTransportTripFee) || 0;
+        body.transportTripFee   = parseFloat(editTransportTripFee) || 0;
       }
-
-      const res = await fetch(`/api/purchases/${editingPurchase.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
+      const res  = await fetch(`/api/purchases/${editingPurchase.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update purchase');
-
-      setMessage({ type: 'success', text: `Purchase ${editingPurchase.id} updated successfully.` });
+      setMessage({ type: 'success', text: `Purchase ${editingPurchase.id} updated.` });
       setEditingPurchase(null);
       fetchData();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
+    } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
-  const computedAgreedPrice = type === 'MIXED_SCRAP' 
-    ? lineItems.reduce((acc, item) => acc + (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0), 0)
-    : type === 'LOOSE_SCRAP'
-    ? (parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)
-    : parseFloat(agreedPrice) || 0;
-
-  const calculatedAdvanceDeduction = selectedSupplier && computedAgreedPrice
-    ? Math.min(selectedSupplier.outstandingAdvance, computedAgreedPrice)
-    : 0;
-  const calculatedCashDue = computedAgreedPrice 
-    ? Math.max(0, computedAgreedPrice - calculatedAdvanceDeduction)
-    : 0;
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div>
+      {/* ── Page Header with Back button ─────────────────────────────────── */}
       <div className="page-header">
-        <div>
-          <h1>Inbound Purchase Processing</h1>
-          <p className="page-title-desc">Dynamic procurement desk supporting dual modes for single motor salvage and heavy lot operations.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button
+            type="button"
+            onClick={() => window.history.back()}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+          >
+            <ArrowLeft size={15} /> Back to Purchase List
+          </button>
+          <div>
+            <h1>Inbound Purchase Processing</h1>
+            <p className="page-title-desc">Dynamic procurement desk supporting dual modes for single motor salvage and heavy lot operations.</p>
+          </div>
         </div>
       </div>
 
+      {/* ── Toast message ──────────────────────────────────────────────────── */}
       {message && (
-        <div style={{
-          padding: '16px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          background: message.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-          border: message.type === 'success' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
-          color: message.type === 'success' ? '#10b981' : '#ef4444',
-          fontWeight: 500,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
+        <div style={{ padding: '16px', borderRadius: '12px', marginBottom: '24px', background: message.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', border: message.type === 'success' ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)', color: message.type === 'success' ? '#10b981' : '#ef4444', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{message.text}</span>
-          <button style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setMessage(null)}>
-            <X size={16} />
-          </button>
+          <button type="button" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }} onClick={() => setMessage(null)}><X size={16} /></button>
         </div>
       )}
 
-      {/* Mode Selector Tabs */}
+      {/* ── Mode tabs ──────────────────────────────────────────────────────── */}
       <div className="tabs-container">
-        <div className={`tab-nav ${type === 'VEHICLE' ? 'active' : ''}`} onClick={() => setType('VEHICLE')}>
-          <Car size={16} /> Single Car Entry Mode
-        </div>
-        <div className={`tab-nav ${type === 'LOOSE_SCRAP' ? 'active' : ''}`} onClick={() => setType('LOOSE_SCRAP')}>
-          <Package size={16} /> Loose Scrap Entry
-        </div>
-        <div className={`tab-nav ${type === 'MIXED_SCRAP' ? 'active' : ''}`} onClick={() => setType('MIXED_SCRAP')}>
-          <Package size={16} /> Mixed Lot Screen
-        </div>
+        <div className={`tab-nav ${type === 'VEHICLE' ? 'active' : ''}`} onClick={() => setType('VEHICLE')}><Car size={16} /> Single Car Entry Mode</div>
+        <div className={`tab-nav ${type === 'LOOSE_SCRAP' ? 'active' : ''}`} onClick={() => setType('LOOSE_SCRAP')}><Package size={16} /> Loose Scrap Entry</div>
+        <div className={`tab-nav ${type === 'MIXED_SCRAP' ? 'active' : ''}`} onClick={() => setType('MIXED_SCRAP')}><Package size={16} /> Mixed Lot Screen</div>
       </div>
 
       <div className="dashboard-layout-main">
-        {/* Left Side: Form */}
-        <form onSubmit={handleFormSubmit} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <h2 style={{ fontSize: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
-            Salvage Procurement Card
-          </h2>
+        {/* ══════════════ LEFT — Main Form ══════════════ */}
+        <form onSubmit={(e) => handleFormSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
 
-          {selectedSupplier && selectedSupplier.outstandingAdvance > 0 && (
-            <div className="custom-alert">
-              <AlertTriangle className="custom-alert-icon" />
-              <div>
-                <p className="custom-alert-title">Smart Advance Auto-Deduction Alert</p>
-                <p style={{ fontSize: '0.85rem' }}>
-                  Supplier <strong>{selectedSupplier.name}</strong> holds an outstanding advance of 
-                  <strong> B$ {selectedSupplier.outstandingAdvance.toFixed(2)}</strong> BND. 
-                  This credit balance will automatically deduct from today's final cash payout calculations.
-                </p>
-              </div>
-            </div>
-          )}
+          {/* ── Section 1: Purchase Header Info ──────────────────────────── */}
+          <div className="glass-panel" style={{ marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '1.1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} style={{ color: '#c9a84c' }} /> Salvage Procurement Card
+            </h2>
 
-          <div className="form-grid">
-            <div className="col-6 form-group">
-              <label>Supplier Vendor Registry</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <CustomSelect
-                  value={supplierId}
-                  onChange={handleSupplierChange}
-                  placeholder="-- Choose Supplier --"
-                  options={suppliers.map(s => ({ value: s.id.toString(), label: `${s.name} (Adv: B$${s.outstandingAdvance.toFixed(0)})` }))}
-                />
-                <button type="button" className="btn-outline" onClick={() => setShowSupplierModal(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 14px' }}>
-                  <PlusCircle size={18} />
-                </button>
-                {selectedSupplier && (
-                  <button type="button" className="btn-outline" onClick={() => openEditSupplier(selectedSupplier)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 14px' }}>
-                    <Pencil size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="col-6 form-group">
-              <label>Pickup Spot Location</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="e.g. Sengkurong Site Yard" 
-                value={pickupLocation}
-                onChange={(e) => setPickupLocation(e.target.value)}
-                required
-              />
-            </div>
-
-            {/* Mode A: Single Vehicle Parameters */}
-            {type === 'VEHICLE' && (
-              <>
-                <div className="col-6 form-group">
-                  <label>Car Model Name</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. Toyota Hilux Double Cab" 
-                    value={vehicleModel}
-                    onChange={(e) => setVehicleModel(e.target.value)}
-                    required
-                  />
+            {/* Purchase ID + Date + Supplier row */}
+            <div className="form-grid">
+              <div className="col-3 form-group">
+                <label><Hash size={12} style={{ display: 'inline', marginRight: '4px', opacity: 0.7 }} />Purchase ID</label>
+                <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '10px 14px', fontFamily: 'monospace', color: '#c9a84c', fontWeight: 700, fontSize: '0.95rem', letterSpacing: '0.05em' }}>
+                  {previewPurchaseId || '—'}
                 </div>
+              </div>
 
-                <div className="col-6 form-group">
-                  <label>Wheel Rim Specification</label>
+              <div className="col-3 form-group">
+                <label><CalendarDays size={12} style={{ display: 'inline', marginRight: '4px', opacity: 0.7 }} />Purchase Date</label>
+                <input type="date" className="form-input" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} required />
+              </div>
+
+              <div className="col-6 form-group">
+                <label>Supplier Vendor Registry</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <CustomSelect
-                    value={alloyWheelsCount.toString()}
-                    onChange={(v) => setAlloyWheelsCount(parseInt(v))}
-                    options={[
-                      { value: '0', label: 'Steel Wheels (0 Alloys)' },
-                      { value: '1', label: '1 Premium Alloy' },
-                      { value: '2', label: '2 Premium Alloys' },
-                      { value: '3', label: '3 Premium Alloys' },
-                      { value: '4', label: '4 Premium Alloys' },
-                      { value: '5', label: '5+ Premium Alloys' },
-                    ]}
-                    required
+                    value={supplierId}
+                    onChange={handleSupplierChange}
+                    placeholder="-- Choose Supplier --"
+                    options={suppliers.map(s => ({ value: s.id.toString(), label: `${s.name} (Adv: B$${s.outstandingAdvance.toFixed(0)})` }))}
                   />
+                  <button type="button" className="btn-outline" onClick={() => setShowSupplierModal(true)} style={{ padding: '10px 14px', display: 'flex', alignItems: 'center' }}><PlusCircle size={18} /></button>
+                  {selectedSupplier && <button type="button" className="btn-outline" onClick={() => openEditSupplier(selectedSupplier)} style={{ padding: '10px 14px', display: 'flex', alignItems: 'center' }}><Pencil size={16} /></button>}
                 </div>
+              </div>
 
-                <div className="col-4 form-group">
-                  <label>Engine Block Intact?</label>
-                  <div className="toggle-group">
-                    <button 
-                      type="button" 
-                      className={`toggle-btn toggle-btn-yes ${engineIntact ? 'active' : ''}`}
-                      onClick={() => setEngineIntact(true)}
-                    >
-                      YES
-                    </button>
-                    <button 
-                      type="button" 
-                      className={`toggle-btn toggle-btn-no ${!engineIntact ? 'active' : ''}`}
-                      onClick={() => setEngineIntact(false)}
-                    >
-                      NO
-                    </button>
-                  </div>
-                </div>
+              <div className="col-6 form-group">
+                <label>Pickup Spot Location</label>
+                <input type="text" className="form-input" placeholder="e.g. Sengkurong Site Yard" value={pickupLocation} onChange={(e) => setPickupLocation(e.target.value)} required />
+              </div>
 
-                <div className="col-4 form-group">
-                  <label>Gearbox Present?</label>
-                  <div className="toggle-group">
-                    <button 
-                      type="button" 
-                      className={`toggle-btn toggle-btn-yes ${gearboxPresent ? 'active' : ''}`}
-                      onClick={() => setGearboxPresent(true)}
-                    >
-                      YES
-                    </button>
-                    <button 
-                      type="button" 
-                      className={`toggle-btn toggle-btn-no ${!gearboxPresent ? 'active' : ''}`}
-                      onClick={() => setGearboxPresent(false)}
-                    >
-                      NO
-                    </button>
-                  </div>
-                </div>
+              <div className="col-6 form-group">
+                <label>Reference / Notes</label>
+                <input type="text" className="form-input" placeholder="e.g. Referral from Hj. Ahmad, special terms..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+            </div>
 
-                <div className="col-4 form-group">
-                  <label>Catalytic Converter?</label>
-                  <div className="toggle-group">
-                    <button 
-                      type="button" 
-                      className={`toggle-btn toggle-btn-yes ${catalyticConverter ? 'active' : ''}`}
-                      onClick={() => setCatalyticConverter(true)}
-                    >
-                      YES
-                    </button>
-                    <button 
-                      type="button" 
-                      className={`toggle-btn toggle-btn-no ${!catalyticConverter ? 'active' : ''}`}
-                      onClick={() => setCatalyticConverter(false)}
-                    >
-                      NO
-                    </button>
-                  </div>
+            {selectedSupplier && selectedSupplier.outstandingAdvance > 0 && (
+              <div className="custom-alert" style={{ marginTop: '4px' }}>
+                <AlertTriangle className="custom-alert-icon" />
+                <div>
+                  <p className="custom-alert-title">Smart Advance Auto-Deduction Alert</p>
+                  <p style={{ fontSize: '0.85rem' }}>Supplier <strong>{selectedSupplier.name}</strong> holds an outstanding advance of <strong>B$ {selectedSupplier.outstandingAdvance.toFixed(2)}</strong>. This will auto-deduct from today's cash payout.</p>
                 </div>
-              </>
+              </div>
             )}
+          </div>
 
-            {/* Mode B: Loose Scrap */}
-            {type === 'LOOSE_SCRAP' && (
-              <>
-                <div className="col-6 form-group">
-                  <label>Material Type</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. Copper Wire, Iron Rods"
-                    value={looseMaterial}
-                    onChange={(e) => setLooseMaterial(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="col-2 form-group">
-                  <label>Quantity</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    placeholder="e.g. 250"
-                    value={looseQty}
-                    onChange={(e) => setLooseQty(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="col-2 form-group">
-                  <label>Unit</label>
-                  <select className="form-input" value={looseUnit} onChange={(e) => setLooseUnit(e.target.value)}>
-                    <option value="KG">KG</option>
-                    <option value="TON">TON</option>
-                    <option value="PCS">PCS</option>
-                  </select>
-                </div>
-                <div className="col-2 form-group">
-                  <label>Rate (BND/{looseUnit})</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    placeholder="0.00"
-                    value={looseRate}
-                    onChange={(e) => setLooseRate(e.target.value)}
-                    required
-                  />
-                </div>
-                {looseQty && looseRate && (
-                  <div className="col-12">
-                    <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Calculated Total</span>
-                      <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>B$ {((parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)).toFixed(2)}</strong>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Mode C: Mixed Lot Parameters */}
-            {type === 'MIXED_SCRAP' && (
-              <>
-                <div className="col-6 form-group">
-                  <label>Lot Identification Name</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. Gadong Clearance Lot #3" 
-                    value={lotName}
-                    onChange={(e) => setLotName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="col-6 form-group">
-                  <label>Tonnage Estimate (Gross Metric KG)</label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    placeholder="e.g. 5500" 
-                    value={grossTonnageEstimate}
-                    onChange={(e) => setGrossTonnageEstimate(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="col-12 form-group">
-                  <label>Scrap Metal Descriptions</label>
-                  <textarea 
-                    className="form-textarea" 
-                    rows={2} 
-                    placeholder="Heavy Industrial Radiators, scrap copper wires, assorted motor blocks..."
-                    value={scrapDescription}
-                    onChange={(e) => setScrapDescription(e.target.value)}
-                  />
-                </div>
-
-                <div className="col-12 form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <label style={{ marginBottom: 0 }}>Materials Inventory Line Items</label>
-                    <button 
-                      type="button" 
-                      className="btn-outline" 
-                      onClick={() => setLineItems([...lineItems, { id: Date.now().toString(), material: '', qty: '', unit: 'KG', rate: '' }])}
-                      style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                    >
-                      <Plus size={14} /> Add Item
-                    </button>
-                  </div>
-                  
-                  {lineItems.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {lineItems.map((item, index) => (
-                        <div key={item.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="Material (e.g. Copper)" 
-                            value={item.material}
-                            onChange={(e) => {
-                              const newItems = [...lineItems];
-                              newItems[index].material = e.target.value;
-                              setLineItems(newItems);
-                            }}
-                            required
-                          />
-                          <input 
-                            type="number" 
-                            className="form-input" 
-                            placeholder="Qty" 
-                            style={{ width: '80px' }}
-                            value={item.qty}
-                            onChange={(e) => {
-                              const newItems = [...lineItems];
-                              newItems[index].qty = e.target.value;
-                              setLineItems(newItems);
-                            }}
-                            required
-                          />
-                          <select 
-                            className="form-input" 
-                            style={{ width: '90px' }}
-                            value={item.unit}
-                            onChange={(e) => {
-                              const newItems = [...lineItems];
-                              newItems[index].unit = e.target.value;
-                              setLineItems(newItems);
-                            }}
-                          >
-                            <option value="KG">KG</option>
-                            <option value="TON">TON</option>
-                            <option value="PCS">PCS</option>
-                          </select>
-                          <input 
-                            type="number" 
-                            className="form-input" 
-                            placeholder="Rate (BND)" 
-                            style={{ width: '100px' }}
-                            value={item.rate}
-                            onChange={(e) => {
-                              const newItems = [...lineItems];
-                              newItems[index].rate = e.target.value;
-                              setLineItems(newItems);
-                            }}
-                            required
-                          />
-                          <div style={{ width: '100px', textAlign: 'right', fontWeight: 600, color: '#10b981' }}>
-                            ${((parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0)).toFixed(2)}
-                          </div>
-                          <button 
-                            type="button" 
-                            onClick={() => setLineItems(lineItems.filter(li => li.id !== item.id))}
-                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+          {/* ── Section 2: Vehicle / Scrap Details ───────────────────────── */}
+          <div className="glass-panel" style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>
+              {type === 'VEHICLE' ? '🚗 Vehicle Details' : type === 'LOOSE_SCRAP' ? '📦 Scrap Details' : '📦 Lot Details'}
+            </h3>
+            <div className="form-grid">
+              {/* ── VEHICLE (single + bulk list) ──────────────────────── */}
+              {type === 'VEHICLE' && (
+                <div className="col-12">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {bulkVehicles.map((v, idx) => (
+                      <div key={v.id} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', overflow: 'hidden' }}>
+                        <div
+                          onClick={() => setExpandedBulkId(expandedBulkId === v.id ? null : v.id)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', cursor: 'pointer', userSelect: 'none' }}
+                        >
+                          <span style={{ color: '#c9a84c', fontWeight: 700, fontSize: '0.85rem', minWidth: '24px' }}>#{idx + 1}</span>
+                          <span style={{ flex: 1, color: '#e2e8f0', fontSize: '0.9rem' }}>
+                            {[v.brand, v.model].filter(Boolean).join(' ') || 'New Vehicle'}
+                            {v.regNo && <span style={{ color: '#64748b', marginLeft: '8px', fontSize: '0.8rem' }}>{v.regNo}</span>}
+                          </span>
+                          {v.price && <span style={{ color: '#10b981', fontWeight: 600, fontSize: '0.85rem' }}>B$ {parseFloat(v.price).toFixed(2)}</span>}
+                          {bulkVehicles.length > 1 && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setBulkVehicles(bulkVehicles.filter(x => x.id !== v.id)); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', display: 'flex' }}><Trash2 size={14} /></button>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', color: '#64748b', fontSize: '0.85rem' }}>
-                      No items added yet. Click "Add Item" to record scrap materials.
+                        {expandedBulkId === v.id && (
+                          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
+                              <div className="form-group">
+                                <label>Vehicle Brand</label>
+                                <input type="text" className="form-input" placeholder="e.g. Toyota" value={v.brand} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, brand: e.target.value } : x))} />
+                              </div>
+                              <div className="form-group">
+                                <label>Vehicle Model</label>
+                                <input type="text" className="form-input" placeholder="e.g. Hilux" value={v.model} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, model: e.target.value } : x))} required />
+                              </div>
+                              <div className="form-group">
+                                <label>Registration No.</label>
+                                <input type="text" className="form-input" placeholder="e.g. BA 1234 X" value={v.regNo} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, regNo: e.target.value } : x))} />
+                              </div>
+                              <div className="form-group">
+                                <label>Price (BND)</label>
+                                <input type="number" className="form-input" placeholder="0.00" value={v.price} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, price: e.target.value } : x))} required />
+                              </div>
+                            </div>
+                            <div className="form-group">
+                              <label>Component Checklist</label>
+                              <Checklist items={v.checklist} onChange={cl => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, checklist: cl } : x))} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
+                              <div className="form-group">
+                                <label>Alloy Wheels Count</label>
+                                <input type="number" className="form-input" min={0} max={8} value={v.alloyWheels} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, alloyWheels: parseInt(e.target.value) || 0 } : x))} />
+                              </div>
+                              <div className="form-group">
+                                <label>Other Info / Condition Notes</label>
+                                <input type="text" className="form-input" placeholder="e.g. Missing bonnet, cracked windscreen..." value={v.otherInfo} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, otherInfo: e.target.value } : x))} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button" className="btn-outline"
+                    onClick={() => { const v = newBulkVehicle(); setBulkVehicles(prev => [...prev, v]); setExpandedBulkId(v.id); }}
+                    style={{ marginTop: '12px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <Plus size={15} /> Add Another Vehicle
+                  </button>
+                  {bulkVehicles.length > 1 && (
+                    <div style={{ marginTop: '10px', padding: '10px 14px', background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{bulkVehicles.length} vehicles — Total</span>
+                      <strong style={{ color: '#e8d5a3' }}>B$ {bulkVehicles.reduce((s, v) => s + (parseFloat(v.price) || 0), 0).toFixed(2)}</strong>
                     </div>
                   )}
                 </div>
-              </>
-            )}
+              )}
 
-            {/* General Inbound Logistics Info */}
-            <div className="col-12" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px', marginTop: '10px' }}>
-              <h3 style={{ fontSize: '1rem', marginBottom: '16px' }}>Dispatch & Transport Log</h3>
+              {/* ── LOOSE SCRAP ────────────────────────────────────────── */}
+              {type === 'LOOSE_SCRAP' && (
+                <>
+                  <div className="col-6 form-group">
+                    <label>Material Type</label>
+                    <input type="text" className="form-input" placeholder="e.g. Copper Wire, Iron Rods" value={looseMaterial} onChange={(e) => setLooseMaterial(e.target.value)} required />
+                  </div>
+                  <div className="col-2 form-group">
+                    <label>Quantity</label>
+                    <input type="number" className="form-input" placeholder="e.g. 250" value={looseQty} onChange={(e) => setLooseQty(e.target.value)} required />
+                  </div>
+                  <div className="col-2 form-group">
+                    <label>Unit</label>
+                    <select className="form-input" value={looseUnit} onChange={(e) => setLooseUnit(e.target.value)}>
+                      <option value="KG">KG</option>
+                      <option value="TON">TON</option>
+                      <option value="PCS">PCS</option>
+                    </select>
+                  </div>
+                  <div className="col-2 form-group">
+                    <label>Rate (BND/{looseUnit})</label>
+                    <input type="number" className="form-input" placeholder="0.00" value={looseRate} onChange={(e) => setLooseRate(e.target.value)} required />
+                  </div>
+                  {looseQty && looseRate && (
+                    <div className="col-12">
+                      <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '10px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Calculated Total</span>
+                        <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>B$ {((parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)).toFixed(2)}</strong>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── MIXED SCRAP ────────────────────────────────────────── */}
+              {type === 'MIXED_SCRAP' && (
+                <>
+                  <div className="col-6 form-group">
+                    <label>Lot Identification Name</label>
+                    <input type="text" className="form-input" placeholder="e.g. Gadong Clearance Lot #3" value={lotName} onChange={(e) => setLotName(e.target.value)} required />
+                  </div>
+                  <div className="col-6 form-group">
+                    <label>Tonnage Estimate (Gross KG)</label>
+                    <input type="number" className="form-input" placeholder="e.g. 5500" value={grossTonnageEstimate} onChange={(e) => setGrossTonnageEstimate(e.target.value)} required />
+                  </div>
+                  <div className="col-12 form-group">
+                    <label>Scrap Metal Descriptions</label>
+                    <textarea className="form-textarea" rows={2} placeholder="Heavy Industrial Radiators, scrap copper wires, assorted motor blocks..." value={scrapDescription} onChange={(e) => setScrapDescription(e.target.value)} />
+                  </div>
+                  <div className="col-12 form-group" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <label style={{ marginBottom: 0 }}>Materials Line Items</label>
+                      <button type="button" className="btn-outline" onClick={() => setLineItems([...lineItems, { id: Date.now().toString(), material: '', qty: '', unit: 'KG', rate: '' }])} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+                        <Plus size={14} /> Add Item
+                      </button>
+                    </div>
+                    {lineItems.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {lineItems.map((item, index) => (
+                          <div key={item.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input type="text" className="form-input" placeholder="Material" value={item.material} onChange={(e) => { const n = [...lineItems]; n[index].material = e.target.value; setLineItems(n); }} required />
+                            <input type="number" className="form-input" placeholder="Qty" style={{ width: '80px' }} value={item.qty} onChange={(e) => { const n = [...lineItems]; n[index].qty = e.target.value; setLineItems(n); }} required />
+                            <select className="form-input" style={{ width: '90px' }} value={item.unit} onChange={(e) => { const n = [...lineItems]; n[index].unit = e.target.value; setLineItems(n); }}>
+                              <option value="KG">KG</option><option value="TON">TON</option><option value="PCS">PCS</option>
+                            </select>
+                            <input type="number" className="form-input" placeholder="Rate" style={{ width: '100px' }} value={item.rate} onChange={(e) => { const n = [...lineItems]; n[index].rate = e.target.value; setLineItems(n); }} required />
+                            <div style={{ width: '100px', textAlign: 'right', fontWeight: 600, color: '#10b981' }}>B$ {((parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0)).toFixed(2)}</div>
+                            <button type="button" onClick={() => setLineItems(lineItems.filter(li => li.id !== item.id))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}><Trash2 size={16} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', color: '#64748b', fontSize: '0.85rem' }}>No items added yet. Click "Add Item" to record scrap materials.</div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
+          </div>
 
-            <div className="col-4 form-group">
-              <label>Logistics Mode</label>
-              <div className="toggle-group">
-                <button 
-                  type="button" 
-                  className={`toggle-btn ${logisticsMethod === 'HIAB' ? 'active' : ''}`}
-                  onClick={() => setLogisticsMethod('HIAB')}
-                >
-                  HIAB Crane
-                </button>
-                <button 
-                  type="button" 
-                  className={`toggle-btn ${logisticsMethod === 'COMPANY_VEHICLE' ? 'active' : ''}`}
-                  onClick={() => setLogisticsMethod('COMPANY_VEHICLE')}
-                >
-                  Own Fleet
-                </button>
-                <button 
-                  type="button" 
-                  className={`toggle-btn ${logisticsMethod === 'TOWING' ? 'active' : ''}`}
-                  onClick={() => setLogisticsMethod('TOWING')}
-                >
-                  Rented Tow
-                </button>
+          {/* ── Section 3: Photo Upload (3 slots) ───────────────────────── */}
+          <div className="glass-panel" style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>📷 Photo Documentation</h3>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <PhotoSlot label="Front View" value={photoFront} onChange={setPhotoFront} />
+              <PhotoSlot label="Side View" value={photoSide} onChange={setPhotoSide} />
+              <PhotoSlot label={type === 'VEHICLE' ? 'Interior / Detail' : 'Pile / Detail'} value={photoDetail} onChange={setPhotoDetail} />
+            </div>
+          </div>
+
+          {/* ── Section 4: Logistics & Collection ───────────────────────── */}
+          <div className="glass-panel" style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>🚛 Dispatch &amp; Transport</h3>
+            <div className="form-grid">
+              {/* 5 collection method cards */}
+              <div className="col-12 form-group">
+                <label>Collection Method</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+                  {LOGISTICS_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setLogisticsMethod(opt.value)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        gap: '6px', padding: '14px 8px', borderRadius: '12px', cursor: 'pointer',
+                        border: logisticsMethod === opt.value ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)',
+                        background: logisticsMethod === opt.value ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.02)',
+                        color: logisticsMethod === opt.value ? '#e8d5a3' : '#94a3b8',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ color: logisticsMethod === opt.value ? '#c9a84c' : '#64748b' }}>{opt.icon}</span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>{opt.label}</span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', textAlign: 'center' }}>{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="col-4 form-group">
-              <label>Assigned Operator / Driver</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="e.g. Sufri" 
-                value={driverName}
-                onChange={(e) => setDriverName(e.target.value)}
-              />
-            </div>
-
-            {logisticsMethod === 'TOWING' ? (
               <div className="col-4 form-group">
-                <label>External Towing Company</label>
-                <CustomSelect
-                  value={transportCompanyId}
-                  onChange={setTransportCompanyId}
-                  placeholder="-- Choose Transporter --"
-                  options={transporters.map(t => ({ value: t.id.toString(), label: t.name }))}
-                  required
+                <label>Collection Date</label>
+                <input type="date" className="form-input" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
+              </div>
+
+              <div className="col-4 form-group">
+                <label>Assigned Driver / Operator</label>
+                <input type="text" className="form-input" placeholder="e.g. Sufri" value={driverName} onChange={(e) => setDriverName(e.target.value)} />
+              </div>
+
+              {(logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY') ? (
+                <>
+                  <div className="col-4 form-group">
+                    <label>External Towing Company</label>
+                    <CustomSelect value={transportCompanyId} onChange={setTransportCompanyId} placeholder="-- Choose Transporter --" options={transporters.map(t => ({ value: t.id.toString(), label: t.name }))} required />
+                  </div>
+                  <div className="col-4 form-group">
+                    <label>Trip Fee (BND)</label>
+                    <input type="number" className="form-input" value={transportTripFee} onChange={(e) => setTransportTripFee(e.target.value)} />
+                  </div>
+                </>
+              ) : (
+                <div className="col-4 form-group" style={{ opacity: 0.4 }}>
+                  <label>Logistics Partner</label>
+                  <input type="text" className="form-input" value="Internal Fleet" disabled />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Section 5: Payment & Financial Settlement ───────────────── */}
+          <div className="glass-panel" style={{ marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>💰 Invoice &amp; Payment Settlement</h3>
+            <div className="form-grid">
+              <div className="col-4 form-group">
+                <label>Agreed Price (BND)</label>
+                <input
+                  type="number" className="form-input" placeholder="0.00"
+                  value={computedAgreedPrice.toFixed(2)}
+                  onChange={(e) => setAgreedPrice(e.target.value)}
+                  disabled={true} required={false}
                 />
               </div>
-            ) : (
-              <div className="col-4 form-group" style={{ opacity: 0.5 }}>
-                <label>Logistics Partner</label>
-                <input type="text" className="form-input" value="Internal Fleet Runs" disabled />
-              </div>
-            )}
 
-            {logisticsMethod === 'TOWING' && (
               <div className="col-4 form-group">
-                <label>Towing Fee due to Partner (BND)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  value={transportTripFee}
-                  onChange={(e) => setTransportTripFee(e.target.value)}
-                />
+                <label>Advance Paid (BND)</label>
+                <input type="number" className="form-input" placeholder="0.00" value={advancePaid} onChange={(e) => setAdvancePaid(e.target.value)} min="0" />
               </div>
-            )}
 
-            {/* Financial valuations */}
-            <div className="col-12" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px', marginTop: '10px' }}>
-              <h3 style={{ fontSize: '1rem', marginBottom: '16px' }}>Invoice Payments Settlement</h3>
-            </div>
+              <div className="col-4 form-group">
+                <label>Balance Due (BND)</label>
+                <div style={{ background: balanceDue > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)', border: `1px solid ${balanceDue > 0 ? 'rgba(239,68,68,0.25)' : 'rgba(16,185,129,0.25)'}`, borderRadius: '10px', padding: '10px 14px', fontWeight: 700, fontSize: '1rem', color: balanceDue > 0 ? '#ef4444' : '#10b981' }}>
+                  B$ {balanceDue.toFixed(2)}
+                  {calculatedAdvanceDeduction > 0 && <span style={{ fontSize: '0.75rem', color: '#f59e0b', display: 'block', fontWeight: 400 }}>After B${calculatedAdvanceDeduction.toFixed(2)} advance deduction</span>}
+                </div>
+              </div>
 
-            <div className="col-4 form-group">
-              <label>Valuation Cost Price (BND)</label>
-              <input 
-                type="number" 
-                className="form-input" 
-                placeholder="0.00" 
-                value={type !== 'VEHICLE' ? computedAgreedPrice.toFixed(2) : agreedPrice}
-                onChange={(e) => setAgreedPrice(e.target.value)}
-                disabled={type !== 'VEHICLE'}
-                required={type === 'VEHICLE'}
-              />
-            </div>
+              {/* Payment Status — inline pill buttons */}
+              <div className="col-6 form-group">
+                <label>Payment Status</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {([
+                    { value: 'PAID',    label: 'Paid',    color: '#10b981', bg: 'rgba(16,185,129,0.12)',    border: 'rgba(16,185,129,0.35)' },
+                    { value: 'PARTIAL', label: 'Partial', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',   border: 'rgba(245,158,11,0.35)' },
+                    { value: 'UNPAID',  label: 'Pending', color: '#ef4444', bg: 'rgba(239,68,68,0.12)',    border: 'rgba(239,68,68,0.35)' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setPaymentStatus(opt.value)}
+                      style={{
+                        flex: 1, padding: '10px 8px', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem',
+                        border: paymentStatus === opt.value ? `2px solid ${opt.border}` : '1px solid rgba(255,255,255,0.08)',
+                        background: paymentStatus === opt.value ? opt.bg : 'rgba(255,255,255,0.02)',
+                        color: paymentStatus === opt.value ? opt.color : '#64748b',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <div className="col-4 form-group">
-              <label>Payment Settlement Mode</label>
-              <CustomSelect
-                value={paymentStatus}
-                onChange={(v) => setPaymentStatus(v as any)}
-                options={[
-                  { value: 'UNPAID', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} style={{ color: '#ef4444' }} /> Unpaid (Pay Later)</span> },
-                  { value: 'PAID', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Check size={14} style={{ color: '#10b981' }} /> Fully Paid Today</span> },
-                  { value: 'PARTIAL', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Clock size={14} style={{ color: '#f59e0b' }} /> Partial Advance Deposit</span> },
-                ]}
-                required
-              />
-            </div>
-
-            <div className="col-4 form-group">
-              <label>Payout Method</label>
-              <CustomSelect
-                value={paymentMethod}
-                onChange={(v) => setPaymentMethod(v as any)}
-                options={[
-                  { value: 'CASH', label: 'Cash Drawer' },
-                  { value: 'BANK_TRANSFER', label: 'Bank Telegraphic Transfer' },
-                ]}
-                required
-              />
-            </div>
-
-            {/* Camera mock up */}
-            <div className="col-12 form-group">
-              <label>Camera Field Proof Attachment</label>
-              <div className="image-preview-box">
-                <Camera size={26} />
-                <span style={{ fontSize: '0.85rem' }}>Proof of Pile / Asset Photo Captured</span>
-                <code style={{ fontSize: '0.75rem', color: '#c9a84c' }}>
-                  {type === 'VEHICLE' ? vehiclePhoto : scrapPhoto}
-                </code>
+              <div className="col-6 form-group">
+                <label>Payout Method</label>
+                <CustomSelect value={paymentMethod} onChange={(v) => setPaymentMethod(v as PaymentMethod)} options={[{ value: 'CASH', label: 'Cash Drawer' }, { value: 'BANK_TRANSFER', label: 'Bank Telegraphic Transfer' }]} required />
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '16px 20px', borderRadius: '12px', marginTop: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <div>
-              <p style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Calculated Cash Payment Today</p>
+          {/* ── Save & Print bottom bar ──────────────────────────────────── */}
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '14px', padding: '16px 20px' }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Calculated Cash Payment Today</p>
               <p style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
-                B$ {calculatedCashDue.toLocaleString('en-US', { minimumFractionDigits: 2 })} 
-                {calculatedAdvanceDeduction > 0 && <span style={{ fontSize: '0.85rem', color: '#f59e0b', marginLeft: '10px' }}>(Deducted B${calculatedAdvanceDeduction})</span>}
+                B$ {balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {calculatedAdvanceDeduction > 0 && <span style={{ fontSize: '0.85rem', color: '#f59e0b', marginLeft: '10px' }}>(Deducted B${calculatedAdvanceDeduction.toFixed(2)})</span>}
               </p>
             </div>
-            
+            <button type="button" className="btn-outline" onClick={() => { setPickupLocation(''); setNotes(''); setSupplierId(''); setSelectedSupplier(null); setAgreedPrice(''); setAdvancePaid('0'); setVehicleBrand(''); setVehicleModel(''); setRegistrationNo(''); setOtherInfo(''); setPhotoFront(''); setPhotoSide(''); setPhotoDetail(''); }}>
+              <X size={16} /> Cancel
+            </button>
+            <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => handleFormSubmit(e as any, true)}>
+              <Printer size={16} /> Save &amp; Print
+            </button>
             <button type="submit" className="btn-primary">
-              <Save size={18} />
-              Save Record to Production
+              <Save size={18} /> Save Record
             </button>
           </div>
         </form>
 
-        {/* Right Side: Ledger view */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="glass-panel" style={{ maxHeight: '900px', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: '1.25rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShoppingBag size={20} style={{ color: '#c9a84c' }} />
-              Live Purchases Log
+        {/* ══════════════ RIGHT — Purchase Summary Panel ══════════════ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* Live summary of the current form */}
+          <div className="glass-panel">
+            <h2 style={{ fontSize: '1.1rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} style={{ color: '#c9a84c' }} /> Purchase Summary
             </h2>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {purchases.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Purchase ID</span>
+                <code style={{ color: '#c9a84c', fontWeight: 700 }}>{previewPurchaseId || '—'}</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Date</span>
+                <span style={{ color: '#e2e8f0' }}>{purchaseDate}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Supplier</span>
+                <span style={{ color: '#e2e8f0' }}>{selectedSupplier?.name || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Type</span>
+                <span className={`badge ${type === 'VEHICLE' ? 'badge-info' : 'badge-warning'}`}>{type.replace('_', ' ')}</span>
+              </div>
+              {type === 'VEHICLE' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                  <span style={{ color: '#94a3b8' }}>Vehicle</span>
+                  <span style={{ color: '#e2e8f0' }}>{[vehicleBrand, vehicleModel].filter(Boolean).join(' ') || '—'}</span>
+                </div>
+              )}
+              {type === 'VEHICLE' && registrationNo && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                  <span style={{ color: '#94a3b8' }}>Reg. No.</span>
+                  <span style={{ color: '#e2e8f0' }}>{registrationNo}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Collection</span>
+                <span style={{ color: '#e2e8f0' }}>{LOGISTICS_OPTIONS.find(o => o.value === logisticsMethod)?.label || logisticsMethod}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Payment</span>
+                <span className={`badge ${paymentStatus === 'PAID' ? 'badge-success' : paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`}>{paymentStatus}</span>
+              </div>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(201,168,76,0.06)', borderRadius: '8px', border: '1px solid rgba(201,168,76,0.15)' }}>
+                  <span style={{ color: '#94a3b8', fontWeight: 600 }}>Agreed Price</span>
+                  <strong style={{ color: '#e8d5a3', fontSize: '1rem' }}>B$ {computedAgreedPrice.toFixed(2)}</strong>
+                </div>
+                {advancePaidNum > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', marginTop: '6px', background: 'rgba(245,158,11,0.05)', borderRadius: '8px' }}>
+                    <span style={{ color: '#94a3b8' }}>Advance Paid</span>
+                    <span style={{ color: '#f59e0b' }}>- B$ {advancePaidNum.toFixed(2)}</span>
+                  </div>
+                )}
+                {calculatedAdvanceDeduction > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', marginTop: '6px', background: 'rgba(245,158,11,0.05)', borderRadius: '8px' }}>
+                    <span style={{ color: '#94a3b8' }}>Advance Deduction</span>
+                    <span style={{ color: '#f59e0b' }}>- B$ {calculatedAdvanceDeduction.toFixed(2)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', marginTop: '6px', background: balanceDue > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)', borderRadius: '8px', border: `1px solid ${balanceDue > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}` }}>
+                  <span style={{ color: '#94a3b8', fontWeight: 700 }}>Balance Due</span>
+                  <strong style={{ color: balanceDue > 0 ? '#ef4444' : '#10b981', fontSize: '1.1rem' }}>B$ {balanceDue.toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent purchases mini-log */}
+          <div className="glass-panel" style={{ maxHeight: '520px', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: '1rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingBag size={18} style={{ color: '#c9a84c' }} /> Recent Purchases
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <SkeletonBox w="90px" h="14px" />
+                      <SkeletonBox w="50px" h="14px" />
+                    </div>
+                    <SkeletonBox w="60%" h="13px" />
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <SkeletonBox w="40%" h="12px" />
+                      <SkeletonBox w="60px" h="12px" />
+                    </div>
+                  </div>
+                ))
+              ) : purchases.length === 0 ? (
                 <p style={{ color: '#64748b', fontSize: '0.9rem' }}>No purchase records yet.</p>
               ) : (
-                purchases.map(p => (
-                  <div 
-                    key={p.id} 
-                    style={{ 
-                      padding: '16px', 
-                      background: 'rgba(255,255,255,0.02)', 
-                      borderRadius: '12px', 
-                      border: '1px solid rgba(255,255,255,0.04)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}
-                  >
-                    <div className="flex-between">
-                      <code style={{ fontSize: '0.85rem', color: '#c9a84c', fontWeight: 700 }}>{p.id}</code>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`badge ${p.paymentStatus === 'PAID' ? 'badge-success' : p.paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`}>
-                          {p.paymentStatus}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(p)}
-                          style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
-                        >
-                          <Pencil size={13} />
-                        </button>
+                purchases.slice(0, 8).map(p => (
+                  <div key={p.id} style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <code style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 700 }}>{p.id}</code>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className={`badge ${p.paymentStatus === 'PAID' ? 'badge-success' : p.paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '0.7rem' }}>{p.paymentStatus}</span>
+                        <button type="button" onClick={() => openEditModal(p)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><Pencil size={11} /></button>
                       </div>
                     </div>
-
-                    <p style={{ fontWeight: 650, color: '#fff', fontSize: '0.95rem' }}>
-                      {p.type === 'VEHICLE' ? p.vehicleModel : p.lotName}
-                    </p>
-
-                    <div style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} style={{ opacity: 0.7 }} /> Location: {p.pickupLocation}</p>
-                      <p style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><User size={14} style={{ opacity: 0.7 }} /> Supplier: {p.supplier?.name}</p>
-                      <p style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Truck size={14} style={{ opacity: 0.7 }} /> Logistics: {p.logisticsMethod} {p.driverName ? `(${p.driverName})` : ''}</p>
-                      {p.previousAdvanceDeduction > 0 && <p style={{ color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} /> Adv Deduction: B$ {p.previousAdvanceDeduction.toFixed(0)}</p>}
-                    </div>
-
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                        {new Date(p.date).toLocaleDateString()}
-                      </span>
-                      <strong style={{ color: '#fff', fontSize: '0.95rem' }}>B$ {p.agreedPrice.toFixed(2)}</strong>
+                    <p style={{ fontWeight: 650, color: '#fff', fontSize: '0.85rem', marginBottom: '4px' }}>{p.type === 'VEHICLE' ? [p.vehicleBrand, p.vehicleModel].filter(Boolean).join(' ') || p.vehicleModel : p.lotName}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', color: '#64748b' }}>
+                      <span>{p.supplier?.name}</span>
+                      <strong style={{ color: '#e2e8f0' }}>B$ {p.agreedPrice.toFixed(2)}</strong>
                     </div>
                   </div>
                 ))
@@ -966,12 +1004,14 @@ export default function PurchasesPage() {
         </div>
       </div>
 
-      {/* Edit Purchase Modal */}
+      {/* ══════════════ EDIT PURCHASE MODAL ══════════════ */}
       {editingPurchase && (
         <div className="overlay">
-          <div className="modal-content" style={{ maxWidth: '680px' }}>
+          <div className="modal-content" style={{ maxWidth: '700px' }}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
-              <h2 className="modal-title" style={{ margin: 0 }}>Edit Purchase — <code style={{ color: '#c9a84c' }}>{editingPurchase.id}</code></h2>
+              <h2 className="modal-title" style={{ margin: 0 }}>
+                Edit Purchase — <code style={{ color: '#c9a84c' }}>{editingPurchase.id}</code>
+              </h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingPurchase(null)}><X size={20} /></button>
             </div>
             <form onSubmit={handleEditSubmit}>
@@ -981,85 +1021,105 @@ export default function PurchasesPage() {
                   <input type="text" className="form-input" value={editPickupLocation} onChange={(e) => setEditPickupLocation(e.target.value)} required />
                 </div>
                 <div className="col-6 form-group">
-                  <label>Driver / Operator</label>
+                  <label>Notes / Reference</label>
+                  <input type="text" className="form-input" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+                </div>
+                <div className="col-6 form-group">
+                  <label>Collection Date</label>
+                  <input type="date" className="form-input" value={editCollectionDate} onChange={(e) => setEditCollectionDate(e.target.value)} />
+                </div>
+                <div className="col-6 form-group">
+                  <label>Driver / Contact</label>
                   <input type="text" className="form-input" value={editDriverName} onChange={(e) => setEditDriverName(e.target.value)} />
                 </div>
-                <div className="col-4 form-group">
-                  <label>Logistics Mode</label>
-                  <div className="toggle-group">
-                    {(['HIAB', 'COMPANY_VEHICLE', 'TOWING'] as const).map(m => (
-                      <button key={m} type="button" className={`toggle-btn ${editLogisticsMethod === m ? 'active' : ''}`} onClick={() => setEditLogisticsMethod(m)}>
-                        {m === 'HIAB' ? 'HIAB' : m === 'COMPANY_VEHICLE' ? 'Own Fleet' : 'Rented Tow'}
+
+                {/* Collection method cards — edit modal */}
+                <div className="col-12 form-group">
+                  <label>Collection Method</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
+                    {LOGISTICS_OPTIONS.map(opt => (
+                      <button key={opt.value} type="button" onClick={() => setEditLogisticsMethod(opt.value)}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '10px 6px', borderRadius: '10px', cursor: 'pointer', border: editLogisticsMethod === opt.value ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)', background: editLogisticsMethod === opt.value ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.02)', color: editLogisticsMethod === opt.value ? '#e8d5a3' : '#64748b', transition: 'all 0.15s ease', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center' }}>
+                        <span style={{ color: editLogisticsMethod === opt.value ? '#c9a84c' : '#64748b' }}>{opt.icon}</span>
+                        {opt.label}
                       </button>
                     ))}
                   </div>
                 </div>
-                <div className="col-4 form-group">
-                  <label>Payment Status</label>
-                  <CustomSelect
-                    value={editPaymentStatus}
-                    onChange={(v) => setEditPaymentStatus(v as any)}
-                    options={[
-                        { value: 'UNPAID', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={14} style={{ color: '#ef4444' }} /> Unpaid</span> },
-                        { value: 'PAID', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Check size={14} style={{ color: '#10b981' }} /> Fully Paid</span> },
-                        { value: 'PARTIAL', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Clock size={14} style={{ color: '#f59e0b' }} /> Partial</span> },
-                    ]}
-                    required
-                  />
-                </div>
-                <div className="col-4 form-group">
-                  <label>Payment Method</label>
-                  <CustomSelect
-                    value={editPaymentMethod}
-                    onChange={(v) => setEditPaymentMethod(v as any)}
-                    options={[
-                      { value: 'CASH', label: 'Cash' },
-                      { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-                    ]}
-                    required
-                  />
-                </div>
 
-                {editingPurchase.type === 'VEHICLE' && (
+                {(editLogisticsMethod === 'HIRED_TOW_TRUCK' || editLogisticsMethod === 'HIRED_LORRY') && (
                   <>
                     <div className="col-6 form-group">
-                      <label>Vehicle Model</label>
-                      <input type="text" className="form-input" value={editVehicleModel} onChange={(e) => setEditVehicleModel(e.target.value)} />
+                      <label>Towing Company</label>
+                      <CustomSelect value={editTransportCompanyId} onChange={setEditTransportCompanyId} placeholder="-- Choose Transporter --" options={transporters.map(t => ({ value: t.id.toString(), label: t.name }))} />
                     </div>
                     <div className="col-6 form-group">
-                      <label>Alloy Wheels Count</label>
-                      <CustomSelect
-                        value={editAlloyWheelsCount.toString()}
-                        onChange={(v) => setEditAlloyWheelsCount(parseInt(v))}
-                        options={[0,1,2,3,4,5].map(n => ({ value: n.toString(), label: n === 0 ? 'Steel (0)' : `${n} Alloy${n > 1 ? 's' : ''}` }))}
-                        required
-                      />
-                    </div>
-                    <div className="col-4 form-group">
-                      <label>Engine Intact?</label>
-                      <div className="toggle-group">
-                        <button type="button" className={`toggle-btn toggle-btn-yes ${editEngineIntact ? 'active' : ''}`} onClick={() => setEditEngineIntact(true)}>YES</button>
-                        <button type="button" className={`toggle-btn toggle-btn-no ${!editEngineIntact ? 'active' : ''}`} onClick={() => setEditEngineIntact(false)}>NO</button>
-                      </div>
-                    </div>
-                    <div className="col-4 form-group">
-                      <label>Gearbox Present?</label>
-                      <div className="toggle-group">
-                        <button type="button" className={`toggle-btn toggle-btn-yes ${editGearboxPresent ? 'active' : ''}`} onClick={() => setEditGearboxPresent(true)}>YES</button>
-                        <button type="button" className={`toggle-btn toggle-btn-no ${!editGearboxPresent ? 'active' : ''}`} onClick={() => setEditGearboxPresent(false)}>NO</button>
-                      </div>
-                    </div>
-                    <div className="col-4 form-group">
-                      <label>Catalytic Converter?</label>
-                      <div className="toggle-group">
-                        <button type="button" className={`toggle-btn toggle-btn-yes ${editCatalyticConverter ? 'active' : ''}`} onClick={() => setEditCatalyticConverter(true)}>YES</button>
-                        <button type="button" className={`toggle-btn toggle-btn-no ${!editCatalyticConverter ? 'active' : ''}`} onClick={() => setEditCatalyticConverter(false)}>NO</button>
-                      </div>
+                      <label>Trip Fee (BND)</label>
+                      <input type="number" className="form-input" value={editTransportTripFee} onChange={(e) => setEditTransportTripFee(e.target.value)} />
                     </div>
                   </>
                 )}
 
-                {editingPurchase.type === 'MIXED_SCRAP' && (
+                <div className="col-6 form-group">
+                  <label>Advance Paid (BND)</label>
+                  <input type="number" className="form-input" value={editAdvancePaid} onChange={(e) => setEditAdvancePaid(e.target.value)} />
+                </div>
+
+                {/* Payment status inline buttons */}
+                <div className="col-6 form-group">
+                  <label>Payment Status</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {([
+                      { value: 'PAID',    label: 'Paid',    color: '#10b981', bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.35)' },
+                      { value: 'PARTIAL', label: 'Partial', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.35)' },
+                      { value: 'UNPAID',  label: 'Pending', color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)' },
+                    ] as const).map(opt => (
+                      <button key={opt.value} type="button" onClick={() => setEditPaymentStatus(opt.value)}
+                        style={{ flex: 1, padding: '9px 6px', borderRadius: '9px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', border: editPaymentStatus === opt.value ? `2px solid ${opt.border}` : '1px solid rgba(255,255,255,0.08)', background: editPaymentStatus === opt.value ? opt.bg : 'rgba(255,255,255,0.02)', color: editPaymentStatus === opt.value ? opt.color : '#64748b', transition: 'all 0.15s ease' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="col-6 form-group">
+                  <label>Payment Method</label>
+                  <CustomSelect value={editPaymentMethod} onChange={(v) => setEditPaymentMethod(v as PaymentMethod)} options={[{ value: 'CASH', label: 'Cash' }, { value: 'BANK_TRANSFER', label: 'Bank Transfer' }]} required />
+                </div>
+
+                {editingPurchase.type === 'VEHICLE' && (
+                  <>
+                    <div className="col-4 form-group">
+                      <label>Vehicle Brand</label>
+                      <input type="text" className="form-input" value={editVehicleBrand} onChange={(e) => setEditVehicleBrand(e.target.value)} />
+                    </div>
+                    <div className="col-4 form-group">
+                      <label>Vehicle Model</label>
+                      <input type="text" className="form-input" value={editVehicleModel} onChange={(e) => setEditVehicleModel(e.target.value)} />
+                    </div>
+                    <div className="col-4 form-group">
+                      <label>Registration No.</label>
+                      <input type="text" className="form-input" value={editRegistrationNo} onChange={(e) => setEditRegistrationNo(e.target.value)} />
+                    </div>
+
+                    <div className="col-12 form-group">
+                      <label>Component Checklist</label>
+                      <Checklist items={editComponentChecklist} onChange={setEditComponentChecklist} />
+                    </div>
+
+                    <div className="col-4 form-group">
+                      <label>Alloy Wheels Count</label>
+                      <input type="number" className="form-input" min={0} max={8} value={editAlloyWheelsCount} onChange={e => setEditAlloyWheelsCount(parseInt(e.target.value) || 0)} />
+                    </div>
+
+                    <div className="col-12 form-group">
+                      <label>Other Info</label>
+                      <textarea className="form-textarea" rows={2} value={editOtherInfo} onChange={(e) => setEditOtherInfo(e.target.value)} />
+                    </div>
+                  </>
+                )}
+
+                {(editingPurchase.type === 'MIXED_SCRAP' || editingPurchase.type === 'LOOSE_SCRAP') && (
                   <>
                     <div className="col-6 form-group">
                       <label>Lot Name</label>
@@ -1075,24 +1135,6 @@ export default function PurchasesPage() {
                     </div>
                   </>
                 )}
-
-                {editLogisticsMethod === 'TOWING' && (
-                  <>
-                    <div className="col-6 form-group">
-                      <label>Towing Company</label>
-                      <CustomSelect
-                        value={editTransportCompanyId}
-                        onChange={setEditTransportCompanyId}
-                        placeholder="-- Choose Transporter --"
-                        options={transporters.map(t => ({ value: t.id.toString(), label: t.name }))}
-                      />
-                    </div>
-                    <div className="col-6 form-group">
-                      <label>Trip Fee (BND)</label>
-                      <input type="number" className="form-input" value={editTransportTripFee} onChange={(e) => setEditTransportTripFee(e.target.value)} />
-                    </div>
-                  </>
-                )}
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
@@ -1104,7 +1146,7 @@ export default function PurchasesPage() {
         </div>
       )}
 
-      {/* Edit Supplier Modal */}
+      {/* ══════════════ EDIT SUPPLIER MODAL ══════════════ */}
       {editingSupplier && (
         <div className="overlay">
           <div className="modal-content">
@@ -1134,53 +1176,30 @@ export default function PurchasesPage() {
         </div>
       )}
 
-      {/* Supplier Modal Dialog */}
+      {/* ══════════════ NEW SUPPLIER MODAL ══════════════ */}
       {showSupplierModal && (
         <div className="overlay">
           <div className="modal-content">
-            <h2 className="modal-title">Register New Supplier Card</h2>
+            <div className="flex-between" style={{ marginBottom: '20px' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>Register New Supplier Card</h2>
+              <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowSupplierModal(false)}><X size={20} /></button>
+            </div>
             <form onSubmit={handleCreateSupplier} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
                 <label>Company / Supplier Name</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. Syarikat Maju Recyclers" 
-                  value={newSupName}
-                  onChange={(e) => setNewSupName(e.target.value)}
-                  required
-                />
+                <input type="text" className="form-input" placeholder="e.g. Syarikat Maju Recyclers" value={newSupName} onChange={(e) => setNewSupName(e.target.value)} required />
               </div>
-
               <div className="form-group">
                 <label>Contact Phone Number</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. +673 8812345" 
-                  value={newSupContact}
-                  onChange={(e) => setNewSupContact(e.target.value)}
-                />
+                <input type="text" className="form-input" placeholder="e.g. +673 8812345" value={newSupContact} onChange={(e) => setNewSupContact(e.target.value)} />
               </div>
-
               <div className="form-group">
-                <label>Outstanding Advance Cash Issuance (BND)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  placeholder="0.00" 
-                  value={newSupAdvance}
-                  onChange={(e) => setNewSupAdvance(e.target.value)}
-                />
+                <label>Outstanding Advance (BND)</label>
+                <input type="number" className="form-input" placeholder="0.00" value={newSupAdvance} onChange={(e) => setNewSupAdvance(e.target.value)} />
               </div>
-
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button type="button" className="btn-outline" onClick={() => setShowSupplierModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Create Card
-                </button>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn-outline" onClick={() => setShowSupplierModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Create Card</button>
               </div>
             </form>
           </div>
