@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, ShieldCheck, Save, X, Pencil, Trash2, KeyRound, UserCircle } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
+import { SkeletonTableRows } from '../../components/Skeleton';
 
 interface User {
   id: number;
@@ -45,6 +46,7 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const blank = { username: '', password: '', name: '', role: 'STAFF' };
   const [form, setForm] = useState<any>(blank);
@@ -53,7 +55,11 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     const res = await fetch('/api/users');
-    if (res.ok) setUsers(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      setUsers(Array.isArray(data) ? data : []);
+    }
+    setLoading(false);
   };
 
   const openAdd = () => { setEditing(null); setForm(blank); setShowModal(true); };
@@ -172,7 +178,7 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.length === 0 ? (
+              {loading ? <SkeletonTableRows cols={5} rows={4} /> : users.length === 0 ? (
                 <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No users found.</td></tr>
               ) : users.map(u => (
                 <tr key={u.id}>

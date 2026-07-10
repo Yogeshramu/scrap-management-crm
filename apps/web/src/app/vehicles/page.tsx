@@ -61,7 +61,7 @@ type VehicleSummary = Omit<Vehicle, 'maintenanceLogs' | 'fuelLogs'>;
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<VehicleSummary[]>([]);
   const [currentVehicle, setCurrentVehicle] = useState<Vehicle | null>(null);
-  const [logsLoading, setLogsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   // Registration form
   const [name, setName] = useState('');
@@ -143,16 +143,18 @@ export default function VehiclesPage() {
       const res = await fetch('/api/vehicles');
       const data = await res.json();
       setVehicles(data);
-      if (data.length > 0 && !currentVehicle) fetchVehicleDetail(data[0].id);
-    } catch (err) { console.error(err); }
+      if (data.length > 0 && !currentVehicle) {
+        await fetchVehicleDetail(data[0].id);
+      }
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
   const fetchVehicleDetail = async (id: number) => {
-    setLogsLoading(true);
+    setLoading(true);
     try {
       const res = await fetch(`/api/vehicles?id=${id}`);
       setCurrentVehicle(await res.json());
-    } catch (err) { console.error(err); } finally { setLogsLoading(false); }
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
   const handleRegisterVehicle = async (e: React.FormEvent) => {
@@ -242,7 +244,7 @@ export default function VehiclesPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Internal Fleet Asset tracker</h1>
+          <h1>Internal Fleet Asset Tracker</h1>
           <p className="page-title-desc">Oversee company machinery, track road tax dates and compliance insurances warning indices, and log operations overheads.</p>
         </div>
         <button className="btn-primary" onClick={() => setShowVehicleModal(true)}>
@@ -266,7 +268,13 @@ export default function VehiclesPage() {
 
       {/* Fleet List Selection tabs */}
       <div className="tabs-container">
-        {vehicles.map(v => {
+        {loading && vehicles.length === 0 ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="tab-nav" style={{ pointerEvents: 'none', minWidth: '100px' }}>
+              <div style={{ width: '80px', height: '14px', background: 'linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite', borderRadius: '4px' }} />
+            </div>
+          ))
+        ) : vehicles.map(v => {
           const isTaxExpiring = getDaysDiff(v.roadTaxExpiry) <= 30;
           const isInsExpiring = getDaysDiff(v.insuranceExpiry) <= 15;
           const isInspExpired = new Date(v.inspectionExpiry).getTime() < Date.now();
@@ -289,30 +297,30 @@ export default function VehiclesPage() {
         })}
       </div>
 
-      {currentVehicle && (
+      {loading ? (
         <div className="dashboard-layout-main">
-          {logsLoading ? (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                <div className="glass-panel">
-                  <SkeletonBox w="50%" h="18px" style={{ marginBottom: '20px' }} />
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                    {Array.from({ length: 3 }).map((_, i) => <SkeletonBox key={i} h="90px" style={{ borderRadius: '12px' }} />)}
-                  </div>
-                </div>
-                <div className="glass-panel">
-                  <SkeletonBox w="40%" h="18px" style={{ marginBottom: '20px' }} />
-                  <table className="custom-table"><tbody><SkeletonTableRows cols={4} rows={4} /></tbody></table>
-                  <SkeletonBox w="40%" h="18px" style={{ margin: '24px 0 20px' }} />
-                  <table className="custom-table"><tbody><SkeletonTableRows cols={4} rows={3} /></tbody></table>
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div className="glass-panel">
+              <SkeletonBox w="50%" h="18px" style={{ marginBottom: '20px' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                {Array.from({ length: 3 }).map((_, i) => <SkeletonBox key={i} h="90px" style={{ borderRadius: '12px' }} />)}
               </div>
-              <div className="glass-panel" style={{ height: 'fit-content' }}>
-                <SkeletonBox w="50%" h="18px" style={{ marginBottom: '16px' }} />
-                {Array.from({ length: 6 }).map((_, i) => <SkeletonBox key={i} h="14px" style={{ marginBottom: '14px' }} />)}
-              </div>
-            </>
-          ) : (<>
+            </div>
+            <div className="glass-panel">
+              <SkeletonBox w="40%" h="18px" style={{ marginBottom: '20px' }} />
+              <table className="custom-table"><tbody><SkeletonTableRows cols={4} rows={4} /></tbody></table>
+              <SkeletonBox w="40%" h="18px" style={{ margin: '24px 0 20px' }} />
+              <table className="custom-table"><tbody><SkeletonTableRows cols={4} rows={3} /></tbody></table>
+            </div>
+          </div>
+          <div className="glass-panel" style={{ height: 'fit-content' }}>
+            <SkeletonBox w="50%" h="18px" style={{ marginBottom: '16px' }} />
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonBox key={i} h="14px" style={{ marginBottom: '14px' }} />)}
+          </div>
+        </div>
+      ) : currentVehicle && (
+        <div className="dashboard-layout-main">
+          <>
           {/* Left panel: vehicle details and action logs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             
@@ -512,7 +520,7 @@ export default function VehiclesPage() {
               </div>
             </div>
           </div>
-          </>)}
+          </>
         </div>
       )}
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Users, Save, X, Pencil, Briefcase, Phone, CreditCard } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
+import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
 
 interface Employee {
   id: number;
@@ -27,6 +28,7 @@ export default function EmployeesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const blank = { name: '', icNumber: '', phone: '', position: 'Driver', department: 'Operations', salary: '', bankAccount: '', bankName: '', joinDate: new Date().toISOString().split('T')[0] };
   const [form, setForm] = useState<any>(blank);
@@ -35,7 +37,9 @@ export default function EmployeesPage() {
 
   const fetchEmployees = async () => {
     const res = await fetch('/api/employees');
-    setEmployees(await res.json());
+    const data = await res.json();
+    setEmployees(Array.isArray(data) ? data : []);
+    setLoading(false);
   };
 
   const openAdd = () => { setEditing(null); setForm(blank); setShowModal(true); };
@@ -81,6 +85,7 @@ export default function EmployeesPage() {
       )}
 
       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '32px' }}>
+        {loading ? <><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /></> : <>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Staff</h3><div className="metric-value">{employees.length}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76,0.1)', color: '#c9a84c' }}><Users size={22} /></div>
@@ -93,27 +98,15 @@ export default function EmployeesPage() {
           <div className="metric-info"><h3>Monthly Payroll</h3><div className="metric-value">B$ {employees.filter(e => e.status === 'Active').reduce((s, e) => s + e.salary, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(232, 213, 163,0.1)', color: '#e8d5a3' }}><CreditCard size={22} /></div>
         </div>
+        </>}
       </div>
 
       <div className="glass-panel">
         <div className="table-wrapper">
           <table className="custom-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Position</th>
-                <th>Department</th>
-                <th>Phone</th>
-                <th>Bank</th>
-                <th>Monthly Salary</th>
-                <th>Status</th>
-                <th>Join Date</th>
-                <th></th>
-              </tr>
-            </thead>
+            <thead><tr><th>ID</th><th>Name</th><th>Position</th><th>Department</th><th>Phone</th><th>Bank</th><th>Monthly Salary</th><th>Status</th><th>Join Date</th><th></th></tr></thead>
             <tbody>
-              {employees.length === 0 ? (
+              {loading ? <SkeletonTableRows cols={10} rows={5} /> : employees.length === 0 ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', color: '#64748b' }}>No employees registered yet.</td></tr>
               ) : employees.map(e => (
                 <tr key={e.id}>

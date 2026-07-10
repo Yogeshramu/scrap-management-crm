@@ -19,7 +19,6 @@ import {
   PlusCircle,
   Pencil,
   Printer,
-  ArrowLeft,
   FileText,
   CalendarDays,
   Hash,
@@ -219,19 +218,7 @@ export default function PurchasesPage() {
   // UI state
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [previewPurchaseId, setPreviewPurchaseId] = useState('');
-
-  // Generate a preview ID for display (auto-refreshed on mount)
-  useEffect(() => {
-    fetch('/api/purchases').then(r => r.json()).then((data: Purchase[]) => {
-      const year = new Date().getFullYear();
-      const yearPurchases = data.filter((p: Purchase) => p.id.startsWith(`PUR-${year}-`));
-      const lastNum = yearPurchases.length > 0 ? Math.max(...yearPurchases.map((p: Purchase) => parseInt(p.id.split('-')[2]))) : 0;
-      setPreviewPurchaseId(`PUR-${year}-${(lastNum + 1).toString().padStart(3, '0')}`);
-    }).catch(() => {
-      setPreviewPurchaseId(`PUR-${new Date().getFullYear()}-001`);
-    });
-  }, []);
+  const [previewPurchaseId, setPreviewPurchaseId] = useState<string>(`PUR-${new Date().getFullYear()}-001`);
 
   // ── Edit purchase state ────────────────────────────────────────────────────
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
@@ -298,6 +285,9 @@ export default function PurchasesPage() {
       setLoading(false);
     }
   };
+
+  const refreshNextId = () =>
+    fetch('/api/purchases/next-id').then(r => r.json()).then(d => setPreviewPurchaseId(d.id)).catch(() => {});
 
   const handleSupplierChange = (idStr: string) => {
     setSupplierId(idStr);
@@ -485,18 +475,9 @@ export default function PurchasesPage() {
     <div>
       {/* ── Page Header with Back button ─────────────────────────────────── */}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button
-            type="button"
-            onClick={() => window.history.back()}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
-          >
-            <ArrowLeft size={15} /> Back to Purchase List
-          </button>
-          <div>
-            <h1>Inbound Purchase Processing</h1>
-            <p className="page-title-desc">Dynamic procurement desk supporting dual modes for single motor salvage and heavy lot operations.</p>
-          </div>
+        <div>
+          <h1>Inbound Purchase Processing</h1>
+          <p className="page-title-desc">Dynamic procurement desk supporting dual modes for single motor salvage and heavy lot operations.</p>
         </div>
       </div>
 
@@ -529,8 +510,8 @@ export default function PurchasesPage() {
             <div className="form-grid">
               <div className="col-3 form-group">
                 <label><Hash size={12} style={{ display: 'inline', marginRight: '4px', opacity: 0.7 }} />Purchase ID</label>
-                <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '10px 14px', fontFamily: 'monospace', color: '#c9a84c', fontWeight: 700, fontSize: '0.95rem', letterSpacing: '0.05em' }}>
-                  {previewPurchaseId || '—'}
+                <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '10px', padding: '10px 14px', fontFamily: 'monospace', color: '#c9a84c', fontWeight: 700, fontSize: '0.95rem', letterSpacing: '0.05em', minHeight: '42px', display: 'flex', alignItems: 'center' }}>
+                  {previewPurchaseId}
                 </div>
               </div>
 
@@ -900,7 +881,7 @@ export default function PurchasesPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.88rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
                 <span style={{ color: '#94a3b8' }}>Purchase ID</span>
-                <code style={{ color: '#c9a84c', fontWeight: 700 }}>{previewPurchaseId || '—'}</code>
+                <code style={{ color: '#c9a84c', fontWeight: 700 }}>{previewPurchaseId ?? '—'}</code>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
                 <span style={{ color: '#94a3b8' }}>Date</span>

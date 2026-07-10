@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { BarChart3, Download, TrendingUp, TrendingDown, Truck, Users, Building2, UserCheck, CreditCard } from 'lucide-react';
+import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
 
 type ReportType = 'sales' | 'purchases' | 'expenses' | 'salary' | 'employees' | 'suppliers' | 'customers';
 type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -195,7 +196,18 @@ export default function ReportsPage() {
 
       {error && <div style={{ padding: '16px', borderRadius: '12px', marginBottom: '24px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444' }}>{error}</div>}
 
-      {data && (
+      {loading && (
+        <>
+          <div className="metrics-grid" style={{ marginBottom: '32px' }}>
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonMetricCard key={i} />)}
+          </div>
+          <div className="glass-panel">
+            <table className="custom-table"><tbody><SkeletonTableRows cols={8} rows={8} /></tbody></table>
+          </div>
+        </>
+      )}
+
+      {!loading && data && (
         <>
           {/* Summary cards */}
           <div className="metrics-grid" style={{ marginBottom: '32px' }}>

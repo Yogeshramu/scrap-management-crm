@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, CreditCard, Save, X, TrendingDown } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
+import { SkeletonTableRows, SkeletonBox } from '../../components/Skeleton';
 
 interface Expense {
   id: number;
@@ -23,6 +24,7 @@ export default function ExpensesPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], category: 'OTHER', description: '', amount: '', paymentMethod: 'CASH', paidTo: '', referenceId: '' });
 
   useEffect(() => { fetchExpenses(); }, []);
@@ -32,7 +34,9 @@ export default function ExpensesPage() {
     if (filterFrom) params.set('from', filterFrom);
     if (filterTo) params.set('to', filterTo);
     const res = await fetch(`/api/expenses?${params}`);
-    setExpenses(await res.json());
+    const data = await res.json();
+    setExpenses(Array.isArray(data) ? data : []);
+    setLoading(false);
   };
 
   const handleSubmit = async (ev: React.FormEvent) => {
@@ -103,7 +107,7 @@ export default function ExpensesPage() {
                 </tr>
               </thead>
               <tbody>
-                {expenses.length === 0 ? (
+                {loading ? <SkeletonTableRows cols={6} rows={6} /> : expenses.length === 0 ? (
                   <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No expenses recorded.</td></tr>
                 ) : expenses.map(e => (
                   <tr key={e.id}>

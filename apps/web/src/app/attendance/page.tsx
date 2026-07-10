@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Save, X, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SkeletonTableRows } from '../../components/Skeleton';
 
 interface AttendanceRecord {
   date: string;
@@ -42,13 +43,16 @@ export default function AttendancePage() {
   const [changes, setChanges] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchAttendance(); }, [month, year]);
 
   const fetchAttendance = async () => {
     const res = await fetch(`/api/attendance?month=${month}&year=${year}`);
-    setEmployees(await res.json());
+    const data = await res.json();
+    setEmployees(Array.isArray(data) ? data : []);
     setChanges({});
+    setLoading(false);
   };
 
   const getStatus = (emp: EmployeeWithAttendance, day: number) => {
@@ -139,7 +143,9 @@ export default function AttendancePage() {
       </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        {employees.length === 0 ? (
+        {loading ? (
+          <table className="custom-table"><tbody><SkeletonTableRows cols={8} rows={6} /></tbody></table>
+        ) : employees.length === 0 ? (
           <p style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>No active employees found. Add employees first.</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${200 + daysInMonth * 36}px` }}>

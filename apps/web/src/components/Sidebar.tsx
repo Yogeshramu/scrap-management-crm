@@ -86,7 +86,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Nav links */}
-      <ul className="nav-links" style={{ overflowY: 'auto', flex: 1 }}>
+      <ul className="nav-links" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', background: 'transparent', scrollbarWidth: 'none' }}>
         {visibleLinks.map((link) => {
           const Icon = link.icon;
           const isActive = pathname === link.href || (link.href !== '/dashboard' && pathname.startsWith(link.href));
@@ -106,7 +106,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </ul>
 
       {/* Footer — expanded */}
-      <div className="sidebar-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="sidebar-footer">
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <UserCircle size={24} style={{ color: '#c9a84c' }} />
@@ -125,7 +125,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Logout btn — collapsed only, outside hidden footer */}
       {collapsed && user && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '12px 0', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '8px 0 0', display: 'flex', justifyContent: 'center' }}>
           <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '42px', height: '42px', borderRadius: '10px' }} title="Logout">
             <LogOut size={18} />
           </button>

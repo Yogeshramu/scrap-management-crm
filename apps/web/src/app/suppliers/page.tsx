@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Building2, Save, X, Pencil, Phone, AlertTriangle } from 'lucide-react';
 import Checklist from '@/components/Checklist';
+import { SkeletonMetricCard, SkeletonTableRows } from '@/components/Skeleton';
 
 const DEFAULT_CHECKLIST = [
   { label: 'IC Copy received', checked: false },
@@ -29,12 +30,15 @@ export default function SuppliersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [form, setForm] = useState({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '' });
   const [docChecklist, setDocChecklist] = useState(DEFAULT_CHECKLIST);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchSuppliers(); }, []);
 
   const fetchSuppliers = async () => {
     const res = await fetch('/api/suppliers');
-    setSuppliers(await res.json());
+    const data = await res.json();
+    setSuppliers(Array.isArray(data) ? data : []);
+    setLoading(false);
   };
 
   const openAdd = () => { setEditing(null); setForm({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '' }); setDocChecklist(DEFAULT_CHECKLIST); setShowModal(true); };
@@ -76,6 +80,7 @@ export default function SuppliersPage() {
       )}
 
       <div className="metrics-grid" style={{ marginBottom: '32px' }}>
+        {loading ? <><SkeletonMetricCard /><SkeletonMetricCard /></> : <>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Suppliers</h3><div className="metric-value">{suppliers.length}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76,0.1)', color: '#c9a84c' }}><Building2 size={22} /></div>
@@ -84,6 +89,7 @@ export default function SuppliersPage() {
           <div className="metric-info"><h3>Total Outstanding Advances</h3><div className="metric-value" style={{ color: totalAdvance > 0 ? '#f59e0b' : '#10b981' }}>B$ {totalAdvance.toFixed(2)}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}><AlertTriangle size={22} /></div>
         </div>
+        </>}
       </div>
 
       <div className="glass-panel">
@@ -91,17 +97,11 @@ export default function SuppliersPage() {
           <table className="custom-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Supplier Name</th>
-                <th>Contact</th>
-                <th>Bank</th>
-                <th>Outstanding Advance</th>
-                <th>Registered</th>
-                <th></th>
+                <th>ID</th><th>Supplier Name</th><th>Contact</th><th>Bank</th><th>Outstanding Advance</th><th>Registered</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {suppliers.length === 0 ? (
+              {loading ? <SkeletonTableRows cols={7} rows={5} /> : suppliers.length === 0 ? (
                 <tr><td colSpan={6} style={{ textAlign: 'center', color: '#64748b' }}>No suppliers registered.</td></tr>
               ) : suppliers.map(s => (
                 <tr key={s.id}>

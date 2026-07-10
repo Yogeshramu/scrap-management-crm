@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, UserCheck, Save, X, Pencil, Phone, TrendingUp } from 'lucide-react';
+import { Plus, UserCheck, Save, X, Pencil, Phone } from 'lucide-react';
+import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
 
 interface Customer {
   id: number;
@@ -16,12 +17,22 @@ export default function CustomersPage() {
   const [editing, setEditing] = useState<Customer | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [form, setForm] = useState({ name: '', contact: '' });
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { fetchCustomers(); }, []);
 
   const fetchCustomers = async () => {
-    const res = await fetch('/api/sales/customers');
-    setCustomers(await res.json());
+    try {
+      const res = await fetch('/api/sales/customers');
+      if (!res.ok) throw new Error('Failed to fetch customers');
+      const data = await res.json();
+      setCustomers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to load customers' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openAdd = () => { setEditing(null); setForm({ name: '', contact: '' }); setShowModal(true); };
@@ -29,6 +40,7 @@ export default function CustomersPage() {
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    setSubmitting(true);
     try {
       const url = editing ? `/api/sales/customers/${editing.id}` : '/api/sales/customers';
       const method = editing ? 'PUT' : 'POST';
@@ -36,10 +48,13 @@ export default function CustomersPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMessage({ type: 'success', text: editing ? `Updated ${form.name}` : `Customer ${form.name} registered.` });
+      setTimeout(() => setMessage(null), 4000);
       setShowModal(false);
       fetchCustomers();
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Something went wrong' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -61,26 +76,18 @@ export default function CustomersPage() {
       )}
 
       <div className="metrics-grid" style={{ marginBottom: '32px' }}>
-        <div className="metric-card">
+        {loading ? <SkeletonMetricCard /> : <div className="metric-card">
           <div className="metric-info"><h3>Total Customers</h3><div className="metric-value">{customers.length}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(14,165,233,0.1)', color: '#0ea5e9' }}><UserCheck size={22} /></div>
-        </div>
+        </div>}
       </div>
 
       <div className="glass-panel">
         <div className="table-wrapper">
           <table className="custom-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Customer Name</th>
-                <th>Contact</th>
-                <th>Registered</th>
-                <th></th>
-              </tr>
-            </thead>
+            <thead><tr><th>ID</th><th>Customer Name</th><th>Contact</th><th>Registered</th><th></th></tr></thead>
             <tbody>
-              {customers.length === 0 ? (
+              {loading ? <SkeletonTableRows cols={5} rows={5} /> : customers.length === 0 ? (
                 <tr><td colSpan={5} style={{ textAlign: 'center', color: '#64748b' }}>No customers registered.</td></tr>
               ) : customers.map(c => (
                 <tr key={c.id}>
@@ -118,7 +125,7 @@ export default function CustomersPage() {
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary"><Save size={16} /> {editing ? 'Save Changes' : 'Register'}</button>
+                <button type="submit" className="btn-primary" disabled={submitting}><Save size={16} /> {submitting ? 'Saving...' : editing ? 'Save Changes' : 'Register'}</button>
               </div>
             </form>
           </div>

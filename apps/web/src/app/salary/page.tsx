@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Banknote, Save, X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
+import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
 
 interface Employee {
   id: number;
@@ -40,6 +41,7 @@ export default function SalaryPage() {
   const [selectedEmp, setSelectedEmp] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [form, setForm] = useState({ workingDays: '26', presentDays: '', overtimeHours: '0', overtimeRate: '0', advances: '0' });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchEmployees(); }, []);
   useEffect(() => { fetchRecords(); }, [month, year]);
@@ -51,7 +53,9 @@ export default function SalaryPage() {
 
   const fetchRecords = async () => {
     const res = await fetch(`/api/salary?month=${month}&year=${year}`);
-    setRecords(await res.json());
+    const data = await res.json();
+    setRecords(Array.isArray(data) ? data : []);
+    setLoading(false);
   };
 
   const handleGenerate = async (ev: React.FormEvent) => {
@@ -113,6 +117,7 @@ export default function SalaryPage() {
       )}
 
       <div className="metrics-grid" style={{ marginBottom: '32px' }}>
+        {loading ? <><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /></> : <>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Payroll</h3><div className="metric-value">B$ {totalNet.toFixed(2)}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76,0.1)', color: '#c9a84c' }}><Banknote size={22} /></div>
@@ -125,26 +130,15 @@ export default function SalaryPage() {
           <div className="metric-info"><h3>Outstanding</h3><div className="metric-value" style={{ color: totalNet - totalPaid > 0 ? '#ef4444' : '#10b981' }}>B$ {(totalNet - totalPaid).toFixed(2)}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}><Banknote size={22} /></div>
         </div>
+        </>}
       </div>
 
       <div className="glass-panel">
         <div className="table-wrapper">
           <table className="custom-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Working Days</th>
-                <th>Present Days</th>
-                <th>OT Hours</th>
-                <th>Advances</th>
-                <th>Gross Salary</th>
-                <th>Net Salary</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
+            <thead><tr><th>Employee</th><th>Working Days</th><th>Present Days</th><th>OT Hours</th><th>Advances</th><th>Gross Salary</th><th>Net Salary</th><th>Status</th><th></th></tr></thead>
             <tbody>
-              {records.length === 0 ? (
+              {loading ? <SkeletonTableRows cols={9} rows={5} /> : records.length === 0 ? (
                 <tr><td colSpan={9} style={{ textAlign: 'center', color: '#64748b' }}>No salary records for this month. Click "Compute Salary" to generate.</td></tr>
               ) : records.map(r => (
                 <tr key={r.id}>
