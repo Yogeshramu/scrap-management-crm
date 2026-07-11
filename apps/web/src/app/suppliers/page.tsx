@@ -128,8 +128,8 @@ export default function SuppliersPage() {
       </div>
 
       {showModal && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>{editing ? 'Edit Supplier' : 'Register New Supplier'}</h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowModal(false)}><X size={20} /></button>

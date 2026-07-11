@@ -513,8 +513,8 @@ export default function SalesPage() {
 
       {/* Edit Sale Modal */}
       {editingSale && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setEditingSale(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>Edit Sale — <code style={{ color: '#e8d5a3' }}>{editingSale.id}</code></h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingSale(null)}><X size={20} /></button>
@@ -550,8 +550,8 @@ export default function SalesPage() {
 
       {/* Edit Customer Modal */}
       {editingCustomer && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setEditingCustomer(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>Edit Customer</h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingCustomer(null)}><X size={20} /></button>
@@ -576,8 +576,8 @@ export default function SalesPage() {
 
       {/* Customer Modal Dialog */}
       {showCustomerModal && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setShowCustomerModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Register New Customer Profile</h2>
             <form onSubmit={handleCreateCustomer} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">

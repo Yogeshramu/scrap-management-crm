@@ -25,7 +25,7 @@ const ROLE_COLORS: Record<string, string> = {
   STAFF: '#10b981',
 };
 
-const PERMISSION_MATRIX = [
+const DEFAULT_PERMISSION_MATRIX = [
   { module: 'Purchases',       staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
   { module: 'Sales',           staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
   { module: 'Suppliers',       staffRead: true,  staffWrite: false, managerRead: true,  managerWrite: true,  adminRead: true,  adminWrite: true  },
@@ -47,6 +47,8 @@ export default function UsersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [matrix, setMatrix] = useState(DEFAULT_PERMISSION_MATRIX);
+  const [matrixEditing, setMatrixEditing] = useState(false);
 
   const blank = { username: '', password: '', name: '', role: 'STAFF' };
   const [form, setForm] = useState<any>(blank);
@@ -124,6 +126,16 @@ export default function UsersPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
           <ShieldCheck size={18} style={{ color: '#c9a84c' }} />
           <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Role Permission Matrix</h2>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+            {matrixEditing ? (
+              <>
+                <button className="btn-outline" style={{ fontSize: '0.8rem', padding: '6px 12px' }} onClick={() => { setMatrix(DEFAULT_PERMISSION_MATRIX); setMatrixEditing(false); }}>Reset</button>
+                <button className="btn-primary" style={{ fontSize: '0.8rem', padding: '6px 12px' }} onClick={() => setMatrixEditing(false)}><Save size={14} /> Save</button>
+              </>
+            ) : (
+              <button className="btn-outline" style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setMatrixEditing(true)}><Pencil size={13} /> Edit</button>
+            )}
+          </div>
         </div>
         <div className="table-wrapper">
           <table className="custom-table" style={{ textAlign: 'center' }}>
@@ -142,20 +154,37 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {PERMISSION_MATRIX.map(row => (
+              {matrix.map((row, rowIdx) => (
                 <tr key={row.module}>
                   <td style={{ textAlign: 'left', fontWeight: 600, color: '#cbd5e1' }}>{row.module}</td>
                   {(['staffRead','staffWrite','managerRead','managerWrite','adminRead','adminWrite'] as const).map(key => (
                     <td key={key}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: '20px', height: '20px', borderRadius: '4px', fontSize: '13px',
-                        background: row[key] ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.08)',
-                        border: row[key] ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(239,68,68,0.2)',
-                        color: row[key] ? '#10b981' : '#ef4444',
-                      }}>
-                        {row[key] ? '✓' : '✕'}
-                      </span>
+                      {matrixEditing ? (
+                        <button
+                          type="button"
+                          onClick={() => setMatrix(prev => prev.map((r, i) => i === rowIdx ? { ...r, [key]: !r[key] } : r))}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '24px', height: '24px', borderRadius: '4px', fontSize: '13px', cursor: 'pointer',
+                            background: row[key] ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.12)',
+                            border: row[key] ? '1px solid rgba(16,185,129,0.5)' : '1px solid rgba(239,68,68,0.35)',
+                            color: row[key] ? '#10b981' : '#ef4444',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {row[key] ? '✓' : '✕'}
+                        </button>
+                      ) : (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '20px', height: '20px', borderRadius: '4px', fontSize: '13px',
+                          background: row[key] ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.08)',
+                          border: row[key] ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(239,68,68,0.2)',
+                          color: row[key] ? '#10b981' : '#ef4444',
+                        }}>
+                          {row[key] ? '✓' : '✕'}
+                        </span>
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -216,8 +245,8 @@ export default function UsersPage() {
 
       {/* Add / Edit Modal */}
       {showModal && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>{editing ? `Edit User — ${editing.username}` : 'Create New User'}</h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowModal(false)}><X size={20} /></button>
@@ -263,8 +292,8 @@ export default function UsersPage() {
 
       {/* Delete Confirm Modal */}
       {confirmDelete && (
-        <div className="overlay">
-          <div className="modal-content" style={{ maxWidth: '420px' }}>
+        <div className="overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="modal-content" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Confirm Delete</h2>
             <p style={{ color: '#cbd5e1', marginBottom: '24px' }}>
               Are you sure you want to delete user <strong style={{ color: '#fff' }}>{confirmDelete.username}</strong>? This cannot be undone.

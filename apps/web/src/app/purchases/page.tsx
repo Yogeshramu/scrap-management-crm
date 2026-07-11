@@ -870,7 +870,7 @@ export default function PurchasesPage() {
         </form>
 
         {/* ══════════════ RIGHT — Purchase Summary Panel ══════════════ */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '24px', alignSelf: 'start' }}>
 
           {/* Live summary of the current form */}
           <div className="glass-panel">
@@ -987,9 +987,9 @@ export default function PurchasesPage() {
 
       {/* ══════════════ EDIT PURCHASE MODAL ══════════════ */}
       {editingPurchase && (
-        <div className="overlay">
-          <div className="modal-content" style={{ maxWidth: '700px' }}>
-            <div className="flex-between" style={{ marginBottom: '20px' }}>
+        <div className="overlay" onClick={() => setEditingPurchase(null)}>
+          <div className="modal-content" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
+            <div className="flex-between" style={{ marginBottom: '20px', position: 'sticky', top: 0, background: '#0e0c09', zIndex: 1, paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>
                 Edit Purchase — <code style={{ color: '#c9a84c' }}>{editingPurchase.id}</code>
               </h2>
@@ -1129,8 +1129,8 @@ export default function PurchasesPage() {
 
       {/* ══════════════ EDIT SUPPLIER MODAL ══════════════ */}
       {editingSupplier && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setEditingSupplier(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>Edit Supplier</h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingSupplier(null)}><X size={20} /></button>
@@ -1159,8 +1159,8 @@ export default function PurchasesPage() {
 
       {/* ══════════════ NEW SUPPLIER MODAL ══════════════ */}
       {showSupplierModal && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setShowSupplierModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>Register New Supplier Card</h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowSupplierModal(false)}><X size={20} /></button>

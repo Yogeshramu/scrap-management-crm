@@ -526,8 +526,8 @@ export default function VehiclesPage() {
 
       {/* Edit Vehicle Modal */}
       {editingVehicle && (
-        <div className="overlay">
-          <div className="modal-content" style={{ maxWidth: '680px' }}>
+        <div className="overlay" onClick={() => setEditingVehicle(null)}>
+          <div className="modal-content" style={{ maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>Edit Vehicle — {editingVehicle.plateNumber}</h2>
               <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingVehicle(null)}><X size={20} /></button>
@@ -588,8 +588,8 @@ export default function VehiclesPage() {
 
       {/* Register Vehicle Modal */}
       {showVehicleModal && (
-        <div className="overlay">
-          <div className="modal-content" style={{ maxWidth: '700px' }}>
+        <div className="overlay" onClick={() => setShowVehicleModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Register Company Fleet Machinery</h2>
             <form onSubmit={handleRegisterVehicle}>
               <div className="form-grid">
@@ -647,8 +647,8 @@ export default function VehiclesPage() {
 
       {/* Log Maintenance Modal */}
       {showMaintModal && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setShowMaintModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Log Asset Maintenance Repairs</h2>
             <form onSubmit={handleMaintSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
@@ -678,8 +678,8 @@ export default function VehiclesPage() {
 
       {/* Log Fuel Modal */}
       {showFuelModal && (
-        <div className="overlay">
-          <div className="modal-content">
+        <div className="overlay" onClick={() => setShowFuelModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Log Fuel Purchase Refueling</h2>
             <form onSubmit={handleFuelSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
