@@ -7,7 +7,6 @@ import {
   Trash2, 
   PlusCircle, 
   Save, 
-  Camera, 
   FileText, 
   UserCheck,
   Check,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonBox } from '../../components/Skeleton';
+import FileUpload from '../../components/FileUpload';
 
 interface ProductItem {
   product: string;
@@ -60,7 +60,7 @@ export default function SalesPage() {
   const [customerId, setCustomerId] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'PARTIAL' | 'UNPAID'>('PAID');
   const [paymentReceived, setPaymentReceived] = useState('');
-  const [customerBillPhoto, setCustomerBillPhoto] = useState('/uploads/sales_invoice_bill.pdf');
+  const [customerBillPhoto, setCustomerBillPhoto] = useState('');
   const [products, setProducts] = useState<ProductItem[]>([
     { product: 'Copper Wire', quantity: '100', unit: 'KG', price: '13.00' }
   ]);
@@ -406,12 +406,7 @@ export default function SalesPage() {
             )}
 
             <div className="col-12 form-group">
-              <label>Bill Upload visual Record</label>
-              <div className="image-preview-box">
-                <Camera size={26} />
-                <span style={{ fontSize: '0.85rem' }}>Attached Receipt / Customer ID Proof</span>
-                <code style={{ fontSize: '0.75rem', color: '#e8d5a3' }}>{customerBillPhoto}</code>
-              </div>
+              <FileUpload label="Bill / Receipt Upload" value={customerBillPhoto} onChange={setCustomerBillPhoto} accept="both" />
             </div>
           </div>
 

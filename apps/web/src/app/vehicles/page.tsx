@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonTableRows, SkeletonBox } from '../../components/Skeleton';
+import FileUpload from '../../components/FileUpload';
 
 interface MaintenanceLog {
   id: number;
@@ -74,6 +75,11 @@ export default function VehiclesPage() {
   const [insuranceExpiry, setInsuranceExpiry] = useState('');
   const [inspectionExpiry, setInspectionExpiry] = useState('');
   
+  const [roadTaxPdf, setRoadTaxPdf] = useState('');
+  const [insurancePdf, setInsurancePdf] = useState('');
+  const [registrationCardPdf, setRegistrationCardPdf] = useState('');
+  const [inspectionPdf, setInspectionPdf] = useState('');
+
   // Maintenance logs form
   const [maintDate, setMaintDate] = useState('');
   const [maintService, setMaintService] = useState('');
@@ -178,6 +184,7 @@ export default function VehiclesPage() {
       setMessage({ type: 'success', text: `Registered brand new fleet vehicle: ${name} [${plateNumber}]` });
       setName(''); setPlateNumber(''); setBrand(''); setModel('');
       setRoadTaxExpiry(''); setInsuranceExpiry(''); setInspectionExpiry('');
+      setRoadTaxPdf(''); setInsurancePdf(''); setRegistrationCardPdf(''); setInspectionPdf('');
       setShowVehicleModal(false);
       await fetchVehicles();
       fetchVehicleDetail(data.id);
@@ -635,6 +642,12 @@ export default function VehiclesPage() {
                   <label>land Inspection expiry</label>
                   <input type="date" className="form-input" value={inspectionExpiry} onChange={(e) => setInspectionExpiry(e.target.value)} />
                 </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '8px' }}>
+                <FileUpload label="Road Tax PDF" value={roadTaxPdf} onChange={setRoadTaxPdf} accept="pdf" compact />
+                <FileUpload label="Insurance PDF" value={insurancePdf} onChange={setInsurancePdf} accept="pdf" compact />
+                <FileUpload label="Registration Card" value={registrationCardPdf} onChange={setRegistrationCardPdf} accept="pdf" compact />
+                <FileUpload label="Inspection Report" value={inspectionPdf} onChange={setInspectionPdf} accept="pdf" compact />
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button type="button" className="btn-outline" onClick={() => setShowVehicleModal(false)}>Cancel</button>

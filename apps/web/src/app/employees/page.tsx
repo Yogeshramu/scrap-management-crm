@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Users, Save, X, Pencil, Briefcase, Phone, CreditCard } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
+import FileUpload from '../../components/FileUpload';
 
 interface Employee {
   id: number;
@@ -30,7 +31,7 @@ export default function EmployeesPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const blank = { name: '', icNumber: '', phone: '', position: 'Driver', department: 'Operations', salary: '', bankAccount: '', bankName: '', joinDate: new Date().toISOString().split('T')[0] };
+  const blank = { name: '', icNumber: '', phone: '', position: 'Driver', department: 'Operations', salary: '', bankAccount: '', bankName: '', joinDate: new Date().toISOString().split('T')[0], photo: '', documents: '' };
   const [form, setForm] = useState<any>(blank);
 
   useEffect(() => { fetchEmployees(); }, []);
@@ -45,7 +46,7 @@ export default function EmployeesPage() {
   const openAdd = () => { setEditing(null); setForm(blank); setShowModal(true); };
   const openEdit = (e: Employee) => {
     setEditing(e);
-    setForm({ name: e.name, icNumber: e.icNumber || '', phone: e.phone || '', position: e.position || 'Driver', department: e.department || 'Operations', salary: e.salary.toString(), bankAccount: e.bankAccount || '', bankName: e.bankName || '', joinDate: e.joinDate.split('T')[0] });
+    setForm({ name: e.name, icNumber: e.icNumber || '', phone: e.phone || '', position: e.position || 'Driver', department: e.department || 'Operations', salary: e.salary.toString(), bankAccount: e.bankAccount || '', bankName: e.bankName || '', joinDate: e.joinDate.split('T')[0], photo: (e as any).photo || '', documents: (e as any).documents || '' });
     setShowModal(true);
   };
 
@@ -182,6 +183,12 @@ export default function EmployeesPage() {
                     <CustomSelect value={form.status || editing.status} onChange={v => setForm({ ...form, status: v })} options={[{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }]} required />
                   </div>
                 )}
+                <div className="col-6">
+                  <FileUpload label="Employee Photo" value={form.photo} onChange={v => setForm({ ...form, photo: v })} accept="images" compact />
+                </div>
+                <div className="col-6">
+                  <FileUpload label="IC / Documents" value={form.documents} onChange={v => setForm({ ...form, documents: v })} accept="both" compact />
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button type="button" className="btn-outline" onClick={() => setShowModal(false)}>Cancel</button>

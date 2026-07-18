@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Building2, Save, X, Pencil, Phone, AlertTriangle } from 'lucide-react';
 import Checklist from '@/components/Checklist';
 import { SkeletonMetricCard, SkeletonTableRows } from '@/components/Skeleton';
+import FileUpload from '@/components/FileUpload';
 
 const DEFAULT_CHECKLIST = [
   { label: 'IC Copy received', checked: false },
@@ -30,6 +31,7 @@ export default function SuppliersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [form, setForm] = useState({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '' });
   const [docChecklist, setDocChecklist] = useState(DEFAULT_CHECKLIST);
+  const [docFile, setDocFile] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchSuppliers(); }, []);
@@ -41,8 +43,8 @@ export default function SuppliersPage() {
     setLoading(false);
   };
 
-  const openAdd = () => { setEditing(null); setForm({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '' }); setDocChecklist(DEFAULT_CHECKLIST); setShowModal(true); };
-  const openEdit = (s: Supplier) => { setEditing(s); setForm({ name: s.name, contact: s.contact || '', outstandingAdvance: s.outstandingAdvance.toString(), bankName: s.bankName || '', bankAccount: s.bankAccount || '' }); setDocChecklist(s.documents ? JSON.parse(s.documents) : DEFAULT_CHECKLIST); setShowModal(true); };
+  const openAdd = () => { setEditing(null); setForm({ name: '', contact: '', outstandingAdvance: '0.00', bankName: '', bankAccount: '' }); setDocChecklist(DEFAULT_CHECKLIST); setDocFile(''); setShowModal(true); };
+  const openEdit = (s: Supplier) => { setEditing(s); setForm({ name: s.name, contact: s.contact || '', outstandingAdvance: s.outstandingAdvance.toString(), bankName: s.bankName || '', bankAccount: s.bankAccount || '' }); setDocChecklist(s.documents ? JSON.parse(s.documents) : DEFAULT_CHECKLIST); setDocFile(''); setShowModal(true); };
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -159,6 +161,7 @@ export default function SuppliersPage() {
                 <label>Document Checklist</label>
                 <Checklist items={docChecklist} onChange={setDocChecklist} />
               </div>
+              <FileUpload label="Upload Document (IC / Agreement)" value={docFile} onChange={setDocFile} accept="both" compact />
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn-primary"><Save size={16} /> {editing ? 'Save Changes' : 'Register'}</button>

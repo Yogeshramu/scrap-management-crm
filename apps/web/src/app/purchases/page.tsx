@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Plus,
   Car,
@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   Save,
   Trash2,
-  Camera,
   Clock,
   Check,
   X,
@@ -31,6 +30,7 @@ import {
 import { SkeletonBox } from '../../components/Skeleton';
 import CustomSelect from '../../components/CustomSelect';
 import Checklist from '../../components/Checklist';
+import FileUpload from '../../components/FileUpload';
 
 interface Supplier {
   id: number;
@@ -117,39 +117,7 @@ function YesNoToggle({ label, value, onChange }: { label: string; value: boolean
   );
 }
 
-// ─── Photo upload slot ────────────────────────────────────────────────────────
-function PhotoSlot({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <p style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '8px' }}>{label}</p>
-      <div
-        className="image-preview-box"
-        style={{ cursor: 'pointer', minHeight: '100px' }}
-        onClick={() => ref.current?.click()}
-      >
-        {value ? (
-          <img src={value} alt={label} style={{ maxWidth: '100%', maxHeight: '90px', borderRadius: '8px', objectFit: 'cover' }} />
-        ) : (
-          <>
-            <Camera size={22} style={{ opacity: 0.5 }} />
-            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{label}</span>
-          </>
-        )}
-      </div>
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onChange(URL.createObjectURL(file));
-        }}
-      />
-    </div>
-  );
-}
+
 
 export default function PurchasesPage() {
   const [purchases, setPurchases]       = useState<Purchase[]>([]);
@@ -227,6 +195,9 @@ export default function PurchasesPage() {
   const [transportTripFee, setTransportTripFee]     = useState('80.00');
 
   // UI state
+  const [applyAdvanceDeduction, setApplyAdvanceDeduction] = useState(true);
+  const [customDeductionMode, setCustomDeductionMode] = useState(false);
+  const [customDeductionAmt, setCustomDeductionAmt] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [previewPurchaseId, setPreviewPurchaseId] = useState<string>(`PUR-${new Date().getFullYear()}-001`);
@@ -305,6 +276,9 @@ export default function PurchasesPage() {
   const handleSupplierChange = (idStr: string) => {
     setSupplierId(idStr);
     setSelectedSupplier(suppliers.find(s => s.id === parseInt(idStr)) || null);
+    setApplyAdvanceDeduction(true);
+    setCustomDeductionMode(false);
+    setCustomDeductionAmt('');
   };
 
   const handleCreateSupplier = async (e: React.FormEvent) => {
@@ -329,7 +303,12 @@ export default function PurchasesPage() {
     : type === 'VEHICLE' ? bulkVehicles.reduce((s, v) => s + (parseFloat(v.price) || 0), 0)
     : parseFloat(agreedPrice) || 0;
 
-  const calculatedAdvanceDeduction = selectedSupplier ? Math.min(selectedSupplier.outstandingAdvance, computedAgreedPrice) : 0;
+  const fullDeduction = selectedSupplier ? Math.min(selectedSupplier.outstandingAdvance, computedAgreedPrice) : 0;
+  const calculatedAdvanceDeduction = applyAdvanceDeduction
+    ? (customDeductionMode
+        ? Math.min(parseFloat(customDeductionAmt) || 0, fullDeduction)
+        : fullDeduction)
+    : 0;
   const advancePaidNum  = parseFloat(advancePaid) || 0;
   const balanceDue      = Math.max(0, computedAgreedPrice - calculatedAdvanceDeduction - advancePaidNum);
 
@@ -571,12 +550,78 @@ export default function PurchasesPage() {
             </div>
 
             {selectedSupplier && selectedSupplier.outstandingAdvance > 0 && (
-              <div className="custom-alert" style={{ marginTop: '4px' }}>
-                <AlertTriangle className="custom-alert-icon" />
-                <div>
-                  <p className="custom-alert-title">Smart Advance Auto-Deduction Alert</p>
-                  <p style={{ fontSize: '0.85rem' }}>Supplier <strong>{selectedSupplier.name}</strong> holds an outstanding advance of <strong>B$ {selectedSupplier.outstandingAdvance.toFixed(2)}</strong>. This will auto-deduct from today's cash payout.</p>
+              <div className="custom-alert" style={{ marginTop: '4px', flexDirection: 'column', gap: '12px', alignItems: 'stretch' }}>
+                {/* Row 1 — icon + text + checkbox */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <AlertTriangle className="custom-alert-icon" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ flex: 1 }}>
+                    <p className="custom-alert-title">Smart Advance Auto-Deduction Alert</p>
+                    <p style={{ fontSize: '0.85rem' }}>Supplier <strong>{selectedSupplier.name}</strong> holds an outstanding advance of <strong>B$ {selectedSupplier.outstandingAdvance.toFixed(2)}</strong>. This will auto-deduct from today's cash payout.</p>
+                  </div>
+                  {/* Apply deduction checkbox */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', flexShrink: 0, fontSize: '0.82rem', fontWeight: 600, color: applyAdvanceDeduction ? '#f59e0b' : '#64748b', whiteSpace: 'nowrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setApplyAdvanceDeduction(!applyAdvanceDeduction); if (applyAdvanceDeduction) { setCustomDeductionMode(false); setCustomDeductionAmt(''); } }}
+                      style={{ width: '20px', height: '20px', borderRadius: '5px', cursor: 'pointer', flexShrink: 0, border: applyAdvanceDeduction ? '2px solid #f59e0b' : '2px solid rgba(255,255,255,0.15)', background: applyAdvanceDeduction ? '#f59e0b' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s ease' }}
+                    >
+                      {applyAdvanceDeduction && <Check size={12} color="#0e0c09" strokeWidth={3} />}
+                    </button>
+                    Apply Deduction
+                  </label>
                 </div>
+
+                {/* Row 2 — deduction mode selector (only when checked) */}
+                {applyAdvanceDeduction && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '30px' }}>
+                    {/* Full deduction pill */}
+                    <button
+                      type="button"
+                      onClick={() => { setCustomDeductionMode(false); setCustomDeductionAmt(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, border: !customDeductionMode ? '2px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)', background: !customDeductionMode ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.03)', color: !customDeductionMode ? '#f59e0b' : '#64748b', transition: 'all 0.15s ease' }}
+                    >
+                      <Check size={12} />
+                      Full — B$ {fullDeduction.toFixed(2)}
+                    </button>
+
+                    {/* Custom amount pill */}
+                    <button
+                      type="button"
+                      onClick={() => { setCustomDeductionMode(true); setCustomDeductionAmt(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, border: customDeductionMode ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.1)', background: customDeductionMode ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.03)', color: customDeductionMode ? '#c9a84c' : '#64748b', transition: 'all 0.15s ease' }}
+                    >
+                      Custom Amount
+                    </button>
+
+                    {/* Custom amount input */}
+                    {customDeductionMode && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>B$</span>
+                        <input
+                          type="number"
+                          className="form-input"
+                          placeholder={`Max ${fullDeduction.toFixed(2)}`}
+                          value={customDeductionAmt}
+                          min="0"
+                          max={fullDeduction}
+                          step="0.01"
+                          onChange={e => setCustomDeductionAmt(e.target.value)}
+                          style={{ width: '120px', padding: '6px 10px', fontSize: '0.85rem' }}
+                        />
+                        {parseFloat(customDeductionAmt) > fullDeduction && (
+                          <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>Max B$ {fullDeduction.toFixed(2)}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Live deduction badge */}
+                    {calculatedAdvanceDeduction > 0 && (
+                      <span style={{ marginLeft: 'auto', fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '6px', padding: '4px 10px', whiteSpace: 'nowrap' }}>
+                        − B$ {calculatedAdvanceDeduction.toFixed(2)} deducted
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -804,10 +849,10 @@ export default function PurchasesPage() {
           {/* ── Section 3: Photo Upload (3 slots) ───────────────────────── */}
           <div className="glass-panel" style={{ marginBottom: '16px' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>📷 Photo Documentation</h3>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <PhotoSlot label={type === 'VEHICLE' ? 'Car Photo' : 'Scrap Photo'} value={photoFront} onChange={setPhotoFront} />
-              <PhotoSlot label="Documents" value={photoSide} onChange={setPhotoSide} />
-              <PhotoSlot label="Additional Photo" value={photoDetail} onChange={setPhotoDetail} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <FileUpload label={type === 'VEHICLE' ? 'Car Photo' : 'Scrap Photo'} value={photoFront} onChange={setPhotoFront} accept="images" />
+              <FileUpload label="Documents" value={photoSide} onChange={setPhotoSide} accept="both" />
+              <FileUpload label="Additional Photo" value={photoDetail} onChange={setPhotoDetail} accept="both" />
             </div>
           </div>
 
