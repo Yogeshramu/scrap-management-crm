@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/rbac';
+import bcrypt from 'bcryptjs';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const deny = await requireRole(req, 'ADMIN');
@@ -14,7 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const data: any = {};
     if (name) data.name = name;
     if (role) data.role = role;
-    if (password) data.passwordHash = password;
+    if (password) data.passwordHash = await bcrypt.hash(password, 12);
 
     const updated = await prisma.user.update({
       where: { id: parseInt(id) },

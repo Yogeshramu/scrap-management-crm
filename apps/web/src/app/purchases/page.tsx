@@ -201,6 +201,8 @@ export default function PurchasesPage() {
 
   // Loose Scrap specific
   const [looseMaterial, setLooseMaterial] = useState('');
+  const [looseCode, setLooseCode]         = useState('');
+  const [looseCodeEnabled, setLooseCodeEnabled] = useState(false);
   const [looseQty, setLooseQty]           = useState('');
   const [looseUnit, setLooseUnit]         = useState('KG');
   const [looseRate, setLooseRate]         = useState('');
@@ -379,7 +381,7 @@ export default function PurchasesPage() {
       }
       // Reset shared fields
       setPickupLocation(''); setNotes(''); setDriverName(''); setAgreedPrice(''); setAdvancePaid('0');
-      setLineItems([]); setLooseMaterial(''); setLooseQty(''); setLooseRate('');
+      setLineItems([]); setLooseMaterial(''); setLooseCode(''); setLooseCodeEnabled(false); setLooseQty(''); setLooseRate('');
       setPhotoFront(''); setPhotoSide(''); setPhotoDetail('');
       setSelectedSupplier(null); setSupplierId('');
       const first = newBulkVehicle(); setBulkVehicles([first]); setExpandedBulkId(first.id);
@@ -584,7 +586,7 @@ export default function PurchasesPage() {
                         </div>
                         {expandedBulkId === v.id && (
                           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                               <div className="form-group">
                                 <label>Vehicle Brand</label>
                                 <input type="text" className="form-input" placeholder="e.g. Toyota" value={v.brand} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, brand: e.target.value } : x))} />
@@ -592,10 +594,6 @@ export default function PurchasesPage() {
                               <div className="form-group">
                                 <label>Vehicle Model</label>
                                 <input type="text" className="form-input" placeholder="e.g. Hilux" value={v.model} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, model: e.target.value } : x))} required />
-                              </div>
-                              <div className="form-group">
-                                <label>Registration No.</label>
-                                <input type="text" className="form-input" placeholder="e.g. BA 1234 X" value={v.regNo} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, regNo: e.target.value } : x))} />
                               </div>
                               <div className="form-group">
                                 <label>Price (BND)</label>
@@ -644,11 +642,30 @@ export default function PurchasesPage() {
                     <label>Material Type</label>
                     <input type="text" className="form-input" placeholder="e.g. Copper Wire, Iron Rods" value={looseMaterial} onChange={(e) => setLooseMaterial(e.target.value)} required />
                   </div>
+                  <div className="col-6 form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setLooseCodeEnabled(!looseCodeEnabled); if (looseCodeEnabled) setLooseCode(''); }}
+                        style={{
+                          width: '20px', height: '20px', borderRadius: '5px', cursor: 'pointer', flexShrink: 0,
+                          border: looseCodeEnabled ? '2px solid #c9a84c' : '2px solid rgba(255,255,255,0.15)',
+                          background: looseCodeEnabled ? '#c9a84c' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {looseCodeEnabled && <Check size={12} color="#0e0c09" strokeWidth={3} />}
+                      </button>
+                      Scrap Code <span style={{ color: '#64748b', fontWeight: 400, fontSize: '0.78rem' }}>(optional)</span>
+                    </label>
+                    <input type="text" className="form-input" placeholder="e.g. SC-001" value={looseCode} onChange={(e) => setLooseCode(e.target.value)} disabled={!looseCodeEnabled} required={looseCodeEnabled} style={{ opacity: looseCodeEnabled ? 1 : 0.4 }} />
+                  </div>
                   <div className="col-2 form-group">
                     <label>Quantity</label>
                     <input type="number" className="form-input" placeholder="e.g. 250" value={looseQty} onChange={(e) => setLooseQty(e.target.value)} required />
                   </div>
-                  <div className="col-2 form-group">
+                  <div className="col-3 form-group">
                     <label>Unit</label>
                     <select className="form-input" value={looseUnit} onChange={(e) => setLooseUnit(e.target.value)}>
                       <option value="KG">KG</option>
@@ -657,7 +674,7 @@ export default function PurchasesPage() {
                     </select>
                   </div>
                   <div className="col-2 form-group">
-                    <label>Rate (BND/{looseUnit})</label>
+                    <label style={{ whiteSpace: 'nowrap' }}>Rate (BND/{looseUnit})</label>
                     <input type="number" className="form-input" placeholder="0.00" value={looseRate} onChange={(e) => setLooseRate(e.target.value)} required />
                   </div>
                   {looseQty && looseRate && (
@@ -721,9 +738,9 @@ export default function PurchasesPage() {
           <div className="glass-panel" style={{ marginBottom: '16px' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>📷 Photo Documentation</h3>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <PhotoSlot label="Front View" value={photoFront} onChange={setPhotoFront} />
-              <PhotoSlot label="Side View" value={photoSide} onChange={setPhotoSide} />
-              <PhotoSlot label={type === 'VEHICLE' ? 'Interior / Detail' : 'Pile / Detail'} value={photoDetail} onChange={setPhotoDetail} />
+              <PhotoSlot label={type === 'VEHICLE' ? 'Car Photo' : 'Scrap Photo'} value={photoFront} onChange={setPhotoFront} />
+              <PhotoSlot label="Documents" value={photoSide} onChange={setPhotoSide} />
+              <PhotoSlot label="Additional Photo" value={photoDetail} onChange={setPhotoDetail} />
             </div>
           </div>
 
@@ -1078,11 +1095,6 @@ export default function PurchasesPage() {
                       <label>Vehicle Model</label>
                       <input type="text" className="form-input" value={editVehicleModel} onChange={(e) => setEditVehicleModel(e.target.value)} />
                     </div>
-                    <div className="col-4 form-group">
-                      <label>Registration No.</label>
-                      <input type="text" className="form-input" value={editRegistrationNo} onChange={(e) => setEditRegistrationNo(e.target.value)} />
-                    </div>
-
                     <div className="col-12 form-group">
                       <label>Component Checklist</label>
                       <Checklist items={editComponentChecklist} onChange={setEditComponentChecklist} />
