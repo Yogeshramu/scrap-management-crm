@@ -170,10 +170,18 @@ export default function PurchasesPage() {
     id: string; brand: string; model: string; regNo: string;
     price: string; alloyWheels: number; otherInfo: string;
     checklist: { label: string; checked: boolean; custom?: boolean }[];
+    logistics?: {
+      logisticsMethod: LogisticsMethod;
+      collectionDate: string;
+      driverName: string;
+      transportCompanyId: string;
+      transportTripFee: string;
+    };
   }
   const newBulkVehicle = (): BulkVehicle => ({ id: Date.now().toString(), brand: '', model: '', regNo: '', price: '', alloyWheels: 0, otherInfo: '', checklist: DEFAULT_CHECKLIST.map(i => ({ ...i })) });
   const [bulkVehicles, setBulkVehicles] = useState<BulkVehicle[]>([newBulkVehicle()]);
   const [expandedBulkId, setExpandedBulkId] = useState<string | null>(bulkVehicles[0]?.id ?? null);
+  const [perVehicleLogistics, setPerVehicleLogistics] = useState(false);
   const [supplierId, setSupplierId]   = useState('');
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
   const [pickupLocation, setPickupLocation] = useState('');
@@ -215,6 +223,7 @@ export default function PurchasesPage() {
 
   // External logistics
   const [transportCompanyId, setTransportCompanyId] = useState('');
+  const [transportCompanyName, setTransportCompanyName] = useState('');
   const [transportTripFee, setTransportTripFee]     = useState('80.00');
 
   // UI state
@@ -255,12 +264,14 @@ export default function PurchasesPage() {
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [newSupName, setNewSupName]       = useState('');
   const [newSupContact, setNewSupContact] = useState('');
+  const [newSupIce, setNewSupIce]         = useState('');
   const [newSupAdvance, setNewSupAdvance] = useState('0.00');
 
   // ── Edit Supplier dialog ───────────────────────────────────────────────────
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [editSupName, setEditSupName]         = useState('');
   const [editSupContact, setEditSupContact]   = useState('');
+  const [editSupIce, setEditSupIce]           = useState('');
   const [editSupAdvance, setEditSupAdvance]   = useState('');
 
   useEffect(() => { fetchData(); }, []);
@@ -300,7 +311,7 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!newSupName) return;
     try {
-      const res  = await fetch('/api/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSupName, contact: newSupContact, outstandingAdvance: parseFloat(newSupAdvance) || 0 }) });
+      const res  = await fetch('/api/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSupName, contact: newSupContact, iceNumber: newSupIce || null, outstandingAdvance: parseFloat(newSupAdvance) || 0 }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create supplier');
       setMessage({ type: 'success', text: `Created supplier card: ${newSupName}` });
@@ -308,7 +319,7 @@ export default function PurchasesPage() {
       setSupplierId(data.id.toString());
       setSelectedSupplier(data);
       setShowSupplierModal(false);
-      setNewSupName(''); setNewSupContact(''); setNewSupAdvance('0.00');
+      setNewSupName(''); setNewSupContact(''); setNewSupIce(''); setNewSupAdvance('0.00');
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
@@ -336,8 +347,9 @@ export default function PurchasesPage() {
         vehiclePhoto: [photoFront, photoSide, photoDetail].filter(Boolean).join(','),
       };
       if (isHired) {
-        sharedBase.transportCompanyId = transportCompanyId ? parseInt(transportCompanyId) : null;
-        sharedBase.transportTripFee   = parseFloat(transportTripFee) || 0;
+        sharedBase.transportCompanyId   = transportCompanyId ? parseInt(transportCompanyId) : null;
+        sharedBase.transportCompanyName  = transportCompanyName || null;
+        sharedBase.transportTripFee      = parseFloat(transportTripFee) || 0;
       }
 
       if (type === 'VEHICLE') {
@@ -345,7 +357,13 @@ export default function PurchasesPage() {
         const results: string[] = [];
         for (const v of bulkVehicles) {
           const cl = v.checklist;
-          const body = { ...sharedBase, type: 'VEHICLE', agreedPrice: parseFloat(v.price) || 0,
+          const vLogistics = perVehicleLogistics && v.logistics ? v.logistics : null;
+          const vMethod = vLogistics ? vLogistics.logisticsMethod : logisticsMethod;
+          const vIsHired = vMethod === 'HIRED_TOW_TRUCK' || vMethod === 'HIRED_LORRY';
+          const body: any = { ...sharedBase, type: 'VEHICLE', agreedPrice: parseFloat(v.price) || 0,
+            logisticsMethod: vMethod,
+            collectionDate: vLogistics ? vLogistics.collectionDate : collectionDate,
+            driverName: vLogistics ? vLogistics.driverName : driverName,
             vehicleBrand: v.brand, vehicleModel: v.model, registrationNo: v.regNo,
             otherInfo: v.otherInfo, alloyWheelsCount: v.alloyWheels,
             engineIntact:       cl.find(i => i.label === 'Engine')?.checked ?? true,
@@ -355,6 +373,10 @@ export default function PurchasesPage() {
             radiator:           cl.find(i => i.label === 'Radiator')?.checked ?? true,
             wiring:             cl.find(i => i.label === 'Wiring')?.checked ?? true,
           };
+          if (vIsHired) {
+            body.transportCompanyId = vLogistics ? (vLogistics.transportCompanyId ? parseInt(vLogistics.transportCompanyId) : null) : (transportCompanyId ? parseInt(transportCompanyId) : null);
+            body.transportTripFee   = vLogistics ? (parseFloat(vLogistics.transportTripFee) || 0) : (parseFloat(transportTripFee) || 0);
+          }
           const res = await fetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
           const data = await res.json();
           if (!res.ok) throw new Error(`${v.brand} ${v.model}: ${data.error}`);
@@ -368,6 +390,7 @@ export default function PurchasesPage() {
         if (type === 'LOOSE_SCRAP') {
           body.lotName = looseMaterial;
           body.scrapDescription = `${looseQty} ${looseUnit} @ B$${looseRate}/${looseUnit}`;
+          if (looseCodeEnabled && looseCode) body.scrapCode = looseCode;
           body.grossTonnageEstimate = parseFloat(looseQty) || 0;
           body.scrapPhoto = [photoFront, photoSide, photoDetail].filter(Boolean).join(',');
           body.lineItems  = [{ id: '1', material: looseMaterial, qty: looseQty, unit: looseUnit, rate: looseRate }];
@@ -390,13 +413,13 @@ export default function PurchasesPage() {
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
-  const openEditSupplier = (s: Supplier) => { setEditingSupplier(s); setEditSupName(s.name); setEditSupContact(s.contact || ''); setEditSupAdvance(s.outstandingAdvance.toString()); };
+  const openEditSupplier = (s: Supplier) => { setEditingSupplier(s); setEditSupName(s.name); setEditSupContact(s.contact || ''); setEditSupIce((s as any).iceNumber || ''); setEditSupAdvance(s.outstandingAdvance.toString()); };
 
   const handleEditSupplierSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSupplier) return;
     try {
-      const res  = await fetch(`/api/suppliers/${editingSupplier.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editSupName, contact: editSupContact, outstandingAdvance: parseFloat(editSupAdvance) || 0 }) });
+      const res  = await fetch(`/api/suppliers/${editingSupplier.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editSupName, contact: editSupContact, iceNumber: editSupIce || null, outstandingAdvance: parseFloat(editSupAdvance) || 0 }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update supplier');
       setMessage({ type: 'success', text: `Supplier ${editSupName} updated.` });
@@ -614,6 +637,50 @@ export default function PurchasesPage() {
                                 <input type="text" className="form-input" placeholder="e.g. Missing bonnet, cracked windscreen..." value={v.otherInfo} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, otherInfo: e.target.value } : x))} />
                               </div>
                             </div>
+                            {/* Per-vehicle logistics */}
+                            {perVehicleLogistics && (
+                              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>🚛 Logistics for this vehicle</p>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
+                                  {LOGISTICS_OPTIONS.map(opt => {
+                                    const cur = v.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK';
+                                    return (
+                                      <button key={opt.value} type="button"
+                                        onClick={() => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { logisticsMethod: opt.value, collectionDate: x.logistics?.collectionDate ?? collectionDate, driverName: x.logistics?.driverName ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '10px 6px', borderRadius: '10px', cursor: 'pointer', border: cur === opt.value ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)', background: cur === opt.value ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.02)', color: cur === opt.value ? '#e8d5a3' : '#64748b', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center', transition: 'all 0.15s ease' }}>
+                                        <span style={{ color: cur === opt.value ? '#c9a84c' : '#64748b' }}>{opt.icon}</span>
+                                        {opt.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                  <div className="form-group">
+                                    <label>Collection Date</label>
+                                    <input type="date" className="form-input" value={v.logistics?.collectionDate ?? collectionDate} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: e.target.value, driverName: x.logistics?.driverName ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))} />
+                                  </div>
+                                  <div className="form-group">
+                                    <label>Driver / Operator</label>
+                                    <input type="text" className="form-input" placeholder="e.g. Sufri" value={v.logistics?.driverName ?? ''} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: x.logistics?.collectionDate ?? collectionDate, driverName: e.target.value, transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))} />
+                                  </div>
+                                </div>
+                                {(v.logistics?.logisticsMethod === 'HIRED_TOW_TRUCK' || v.logistics?.logisticsMethod === 'HIRED_LORRY') && (
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                    <div className="form-group">
+                                      <label>Towing Company</label>
+                                      <input list="transporter-list" className="form-input" placeholder="Type company name..." value={v.logistics?.transportCompanyId ?? ''} onChange={e => {
+                                        const match = transporters.find(t => t.name === e.target.value);
+                                        setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics!.logisticsMethod, collectionDate: x.logistics!.collectionDate, driverName: x.logistics!.driverName, transportCompanyId: match ? match.id.toString() : e.target.value, transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x));
+                                      }} />
+                                    </div>
+                                    <div className="form-group">
+                                      <label>Trip Fee (BND)</label>
+                                      <input type="number" className="form-input" value={v.logistics?.transportTripFee ?? '80.00'} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics!.logisticsMethod, collectionDate: x.logistics!.collectionDate, driverName: x.logistics!.driverName, transportCompanyId: x.logistics!.transportCompanyId, transportTripFee: e.target.value } } : x))} />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -746,8 +813,24 @@ export default function PurchasesPage() {
 
           {/* ── Section 4: Logistics & Collection ───────────────────────── */}
           <div className="glass-panel" style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>🚛 Dispatch &amp; Transport</h3>
-            <div className="form-grid">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '1rem', color: '#c9a84c', margin: 0 }}>🚛 Dispatch &amp; Transport</h3>
+              {type === 'VEHICLE' && (
+                <button type="button" onClick={() => setPerVehicleLogistics(!perVehicleLogistics)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 14px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, border: perVehicleLogistics ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.12)', background: perVehicleLogistics ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.03)', color: perVehicleLogistics ? '#e8d5a3' : '#64748b', transition: 'all 0.15s ease' }}>
+                  <span style={{ width: '16px', height: '16px', borderRadius: '4px', border: perVehicleLogistics ? '2px solid #c9a84c' : '2px solid rgba(255,255,255,0.2)', background: perVehicleLogistics ? '#c9a84c' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
+                    {perVehicleLogistics && <Check size={10} color="#0e0c09" strokeWidth={3} />}
+                  </span>
+                  Per-vehicle logistics
+                </button>
+              )}
+            </div>
+            {perVehicleLogistics && type === 'VEHICLE' ? (
+              <div style={{ padding: '12px 16px', background: 'rgba(201,168,76,0.05)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: '10px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                Each vehicle has its own logistics set inside the vehicle card above. The fields below apply only to vehicles without individual logistics set.
+              </div>
+            ) : (
+              <div className="form-grid">
               {/* 5 collection method cards */}
               <div className="col-12 form-group">
                 <label>Collection Method</label>
@@ -788,7 +871,12 @@ export default function PurchasesPage() {
                 <>
                   <div className="col-4 form-group">
                     <label>External Towing Company</label>
-                    <CustomSelect value={transportCompanyId} onChange={setTransportCompanyId} placeholder="-- Choose Transporter --" options={transporters.map(t => ({ value: t.id.toString(), label: t.name }))} required />
+                    <input list="transporter-list" className="form-input" placeholder="Type company name..." value={transportCompanyName} onChange={e => {
+                      setTransportCompanyName(e.target.value);
+                      const match = transporters.find(t => t.name === e.target.value);
+                      setTransportCompanyId(match ? match.id.toString() : '');
+                    }} />
+                    <datalist id="transporter-list">{transporters.map(t => <option key={t.id} value={t.name} />)}</datalist>
                   </div>
                   <div className="col-4 form-group">
                     <label>Trip Fee (BND)</label>
@@ -801,7 +889,8 @@ export default function PurchasesPage() {
                   <input type="text" className="form-input" value="Internal Fleet" disabled />
                 </div>
               )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* ── Section 5: Payment & Financial Settlement ───────────────── */}
@@ -1049,7 +1138,9 @@ export default function PurchasesPage() {
                   <>
                     <div className="col-6 form-group">
                       <label>Towing Company</label>
-                      <CustomSelect value={editTransportCompanyId} onChange={setEditTransportCompanyId} placeholder="-- Choose Transporter --" options={transporters.map(t => ({ value: t.id.toString(), label: t.name }))} />
+                      <input list="transporter-list" className="form-input" placeholder="Type company name..." value={editTransportCompanyId} onChange={e => {
+                        setEditTransportCompanyId(e.target.value);
+                      }} />
                     </div>
                     <div className="col-6 form-group">
                       <label>Trip Fee (BND)</label>
@@ -1157,6 +1248,10 @@ export default function PurchasesPage() {
                 <input type="text" className="form-input" value={editSupContact} onChange={(e) => setEditSupContact(e.target.value)} />
               </div>
               <div className="form-group">
+                <label>ICE Number</label>
+                <input type="text" className="form-input" placeholder="e.g. ICE-12345" value={editSupIce} onChange={(e) => setEditSupIce(e.target.value)} />
+              </div>
+              <div className="form-group">
                 <label>Outstanding Advance (BND)</label>
                 <input type="number" className="form-input" value={editSupAdvance} onChange={(e) => setEditSupAdvance(e.target.value)} />
               </div>
@@ -1185,6 +1280,10 @@ export default function PurchasesPage() {
               <div className="form-group">
                 <label>Contact Phone Number</label>
                 <input type="text" className="form-input" placeholder="e.g. +673 8812345" value={newSupContact} onChange={(e) => setNewSupContact(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>ICE Number</label>
+                <input type="text" className="form-input" placeholder="e.g. ICE-12345" value={newSupIce} onChange={(e) => setNewSupIce(e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Outstanding Advance (BND)</label>

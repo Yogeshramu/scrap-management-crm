@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
       engineIntact, gearboxPresent, catalyticConverter, battery, radiator, wiring,
       alloyWheelsCount, vehiclePhoto, collectionDate, advancePaid,
       // Scrap fields
-      lotName, scrapDescription, scrapPhoto, grossTonnageEstimate,
+      lotName, scrapDescription, scrapCode, scrapPhoto, grossTonnageEstimate,
       // Logistics
-      transportCompanyId, transportTripFee,
+      transportCompanyId, transportCompanyName, transportTripFee,
       lineItems
     } = body;
 
@@ -82,11 +82,13 @@ export async function POST(req: NextRequest) {
           vehiclePhoto: type === 'VEHICLE' ? vehiclePhoto || '' : '',
           // Scrap
           lotName: isScrap ? lotName : null,
+          scrapCode: isScrap ? scrapCode || null : null,
           scrapDescription: isScrap ? scrapDescription : null,
           scrapPhoto: isScrap ? scrapPhoto || '' : '',
           grossTonnageEstimate: isScrap ? parseFloat(grossTonnageEstimate) || 0 : null,
           // Transport
           transportCompanyId: isHired && transportCompanyId ? parseInt(transportCompanyId) : null,
+          transportCompanyName: isHired ? (transportCompanyName || null) : null,
           transportTripFee: isHired && transportTripFee ? parseFloat(transportTripFee) : 0,
           transportPaymentStatus: isHired ? 'UNPAID' : 'N/A'
         }

@@ -12,9 +12,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, contact, outstandingAdvance, bankName, bankAccount, documents } = await req.json();
+    const { name, contact, iceNumber, outstandingAdvance, bankName, bankAccount, documents } = await req.json();
     const supplier = await prisma.supplier.create({
-      data: { name, contact: contact || '', outstandingAdvance: parseFloat(outstandingAdvance) || 0, bankName: bankName || null, bankAccount: bankAccount || null, documents: documents || null }
+      data: { name, contact: contact || '', iceNumber: iceNumber || null, outstandingAdvance: parseFloat(outstandingAdvance) || 0, bankName: bankName || null, bankAccount: bankAccount || null, documents: documents || null }
     });
     await prisma.auditLog.create({
       data: { action: `ADDED SUPPLIER: ${name}`, performedBy: 'Manager', details: `Created supplier card with outstanding advance of B$${outstandingAdvance || 0}` }

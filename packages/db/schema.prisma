@@ -12,6 +12,7 @@ model Supplier {
   id                 Int        @id @default(autoincrement())
   name               String     @unique
   contact            String?
+  iceNumber          String?
   outstandingAdvance Float      @default(0.0)
   bankName           String?
   bankAccount        String?
@@ -56,6 +57,7 @@ model Purchase {
 
   // Specific Columns for MIXED SCRAP / LOOSE SCRAP mode
   lotName                  String?
+  scrapCode                String?
   scrapDescription         String?
   scrapPhoto               String?           // Image file/URL
   grossTonnageEstimate     Float?            // Gross Lot Tonnage in KG
@@ -63,6 +65,7 @@ model Purchase {
 
   // Transporter (if Towing / HIAB is external)
   transportCompanyId       Int?
+  transportCompanyName     String?
   transportCompany         TransportCompany? @relation(fields: [transportCompanyId], references: [id])
   transportTripFee         Float?            @default(0.0)
   transportPaymentStatus   String?           @default("UNPAID") // "PAID", "UNPAID", "N/A"
