@@ -26,6 +26,7 @@ import {
   Battery,
   Droplets,
   Cable,
+  FlaskConical,
 } from 'lucide-react';
 import { SkeletonBox } from '../../components/Skeleton';
 import CustomSelect from '../../components/CustomSelect';
@@ -474,6 +475,87 @@ export default function PurchasesPage() {
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
+  // ── Load dummy data for testing ──────────────────────────────────────────
+  const loadDummyData = () => {
+    setType('VEHICLE');
+    setPickupLocation('Kg. Sungai Tilong Scrapyard, Brunei Muara');
+    setNotes('Bulk salvage lot — referral from Hj. Rosli');
+    setLogisticsMethod('OUR_TOW_TRUCK');
+    setDriverName('Sufri bin Haji Damit');
+    setCollectionDate(new Date().toISOString().split('T')[0]);
+    setPaymentStatus('PARTIAL');
+    setPaymentMethod('CASH');
+    setAdvancePaid('100');
+    setPerVehicleLogistics(true);
+
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+    const dummyVehicles = [
+      {
+        id: Date.now().toString(),
+        brand: 'Toyota', model: 'Hilux', regNo: 'BA 2341 A',
+        price: '850', alloyWheels: 4, otherInfo: 'Missing front bumper, engine intact',
+        checklist: [
+          { label: 'Engine', checked: true }, { label: 'Gearbox', checked: true },
+          { label: 'Catalytic', checked: false }, { label: 'Battery', checked: true },
+          { label: 'Radiator', checked: true }, { label: 'Wiring', checked: false },
+        ],
+        logistics: {
+          logisticsMethod: 'OUR_TOW_TRUCK' as LogisticsMethod,
+          collectionDate: today,
+          driverName: 'Sufri bin Haji Damit',
+          transportCompanyId: '',
+          transportTripFee: '0',
+        },
+      },
+      {
+        id: (Date.now() + 1).toString(),
+        brand: 'Mitsubishi', model: 'Pajero', regNo: 'BB 5892 C',
+        price: '1200', alloyWheels: 4, otherInfo: 'Cracked windscreen, gearbox present',
+        checklist: [
+          { label: 'Engine', checked: true }, { label: 'Gearbox', checked: true },
+          { label: 'Catalytic', checked: true }, { label: 'Battery', checked: false },
+          { label: 'Radiator', checked: true }, { label: 'Wiring', checked: true },
+        ],
+        logistics: {
+          logisticsMethod: 'HIRED_TOW_TRUCK' as LogisticsMethod,
+          collectionDate: today,
+          driverName: '',
+          transportCompanyId: 'Syarikat Towing Maju',
+          transportTripFee: '80',
+        },
+      },
+      {
+        id: (Date.now() + 2).toString(),
+        brand: 'Nissan', model: 'Navara', regNo: 'BC 1107 D',
+        price: '650', alloyWheels: 0, otherInfo: 'No wheels, stripped interior',
+        checklist: [
+          { label: 'Engine', checked: false }, { label: 'Gearbox', checked: true },
+          { label: 'Catalytic', checked: false }, { label: 'Battery', checked: false },
+          { label: 'Radiator', checked: false }, { label: 'Wiring', checked: true },
+        ],
+        logistics: {
+          logisticsMethod: 'OUR_LORRY' as LogisticsMethod,
+          collectionDate: tomorrow,
+          driverName: 'Hairul bin Metali',
+          transportCompanyId: '',
+          transportTripFee: '0',
+        },
+      },
+    ];
+    setBulkVehicles(dummyVehicles);
+    setExpandedBulkId(dummyVehicles[0].id);
+
+    if (suppliers.length > 0) {
+      const s = suppliers[0];
+      setSupplierId(s.id.toString());
+      setSelectedSupplier(s);
+      setApplyAdvanceDeduction(s.outstandingAdvance > 0);
+    }
+    setMessage({ type: 'success', text: '🧪 Dummy data loaded — 3 vehicles with per-vehicle logistics pre-filled.' });
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -483,6 +565,13 @@ export default function PurchasesPage() {
           <h1>Inbound Purchase Processing</h1>
           <p className="page-title-desc">Dynamic procurement desk supporting dual modes for single motor salvage and heavy lot operations.</p>
         </div>
+        <button
+          type="button"
+          onClick={loadDummyData}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 16px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, border: '1px dashed rgba(139,92,246,0.4)', background: 'rgba(139,92,246,0.08)', color: '#a78bfa', transition: 'all 0.15s ease' }}
+        >
+          <FlaskConical size={15} /> Load Test Data
+        </button>
       </div>
 
       {/* ── Toast message ──────────────────────────────────────────────────── */}
