@@ -32,6 +32,7 @@ import { SkeletonBox } from '../../components/Skeleton';
 import CustomSelect from '../../components/CustomSelect';
 import Checklist from '../../components/Checklist';
 import FileUpload from '../../components/FileUpload';
+import { printPurchaseInvoice, type PrintPurchaseData } from '../../components/PrintInvoice';
 
 interface Supplier {
   id: number;
@@ -142,12 +143,23 @@ export default function PurchasesPage() {
     logistics?: {
       logisticsMethod: LogisticsMethod;
       collectionDate: string;
-      driverName: string;
+      driverNames: string[];
+      crewCount: string;
       transportCompanyId: string;
       transportTripFee: string;
     };
   }
   const newBulkVehicle = (): BulkVehicle => ({ id: Date.now().toString(), brand: '', model: '', regNo: '', price: '', alloyWheels: 0, otherInfo: '', checklist: DEFAULT_CHECKLIST.map(i => ({ ...i })) });
+
+  // Multi-driver tag input helpers
+  const [driverInput, setDriverInput] = useState('');
+  const [driverNames, setDriverNames] = useState<string[]>([]);
+  const [crewCount, setCrewCount] = useState('');
+  const addDriver = (name: string, setInput: (v: string) => void, list: string[], setList: (v: string[]) => void) => {
+    const n = name.trim();
+    if (n && !list.includes(n)) setList([...list, n]);
+    setInput('');
+  };
   const [bulkVehicles, setBulkVehicles] = useState<BulkVehicle[]>([newBulkVehicle()]);
   const [expandedBulkId, setExpandedBulkId] = useState<string | null>(bulkVehicles[0]?.id ?? null);
   const [perVehicleLogistics, setPerVehicleLogistics] = useState(false);
@@ -157,7 +169,7 @@ export default function PurchasesPage() {
   const [notes, setNotes]             = useState('');
   const [logisticsMethod, setLogisticsMethod] = useState<LogisticsMethod>('OUR_TOW_TRUCK');
   const [collectionDate, setCollectionDate]   = useState(new Date().toISOString().split('T')[0]);
-  const [driverName, setDriverName]   = useState('');
+  const [driverName, setDriverName]   = useState(''); // kept for non-vehicle / fallback
   const [agreedPrice, setAgreedPrice] = useState('');
   const [advancePaid, setAdvancePaid] = useState('0');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('UNPAID');
@@ -323,7 +335,9 @@ export default function PurchasesPage() {
       const isHired = logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY';
       const sharedBase: any = {
         supplierId: parseInt(supplierId), pickupLocation, notes, logisticsMethod,
-        collectionDate, driverName, paymentStatus, paymentMethod, advancePaid: advancePaidNum,
+        collectionDate,
+        driverName: driverNames.length > 0 ? driverNames.join(', ') + (crewCount ? ` (+${crewCount} crew)` : '') : driverName,
+        paymentStatus, paymentMethod, advancePaid: advancePaidNum,
         vehiclePhoto: [photoFront, photoSide, photoDetail].filter(Boolean).join(','),
       };
       if (isHired) {
@@ -331,6 +345,8 @@ export default function PurchasesPage() {
         sharedBase.transportCompanyName  = transportCompanyName || null;
         sharedBase.transportTripFee      = parseFloat(transportTripFee) || 0;
       }
+
+      const savedInvoices: PrintPurchaseData[] = [];
 
       if (type === 'VEHICLE') {
         if (bulkVehicles.length === 0) { setMessage({ type: 'error', text: 'Add at least one vehicle.' }); return; }
@@ -340,10 +356,14 @@ export default function PurchasesPage() {
           const vLogistics = perVehicleLogistics && v.logistics ? v.logistics : null;
           const vMethod = vLogistics ? vLogistics.logisticsMethod : logisticsMethod;
           const vIsHired = vMethod === 'HIRED_TOW_TRUCK' || vMethod === 'HIRED_LORRY';
-          const body: any = { ...sharedBase, type: 'VEHICLE', agreedPrice: parseFloat(v.price) || 0,
+          const vDriverName = vLogistics
+            ? (vLogistics.driverNames.length > 0 ? vLogistics.driverNames.join(', ') + (vLogistics.crewCount ? ` (+${vLogistics.crewCount} crew)` : '') : '')
+            : (driverNames.length > 0 ? driverNames.join(', ') + (crewCount ? ` (+${crewCount} crew)` : '') : driverName);
+          const vPrice = parseFloat(v.price) || 0;
+          const body: any = { ...sharedBase, type: 'VEHICLE', agreedPrice: vPrice,
             logisticsMethod: vMethod,
             collectionDate: vLogistics ? vLogistics.collectionDate : collectionDate,
-            driverName: vLogistics ? vLogistics.driverName : driverName,
+            driverName: vDriverName,
             vehicleBrand: v.brand, vehicleModel: v.model, registrationNo: v.regNo,
             otherInfo: v.otherInfo, alloyWheelsCount: v.alloyWheels,
             engineIntact:       cl.find(i => i.label === 'Engine')?.checked ?? true,
@@ -358,9 +378,26 @@ export default function PurchasesPage() {
             body.transportTripFee   = vLogistics ? (parseFloat(vLogistics.transportTripFee) || 0) : (parseFloat(transportTripFee) || 0);
           }
           const res = await fetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-          const data = await res.json();
-          if (!res.ok) throw new Error(`${v.brand} ${v.model}: ${data.error}`);
-          results.push(data.id);
+          const saved = await res.json();
+          if (!res.ok) throw new Error(`${v.brand} ${v.model}: ${saved.error}`);
+          results.push(saved.id);
+          savedInvoices.push({
+            id: saved.id, date: saved.date ?? new Date().toISOString(),
+            supplierName: selectedSupplier?.name ?? '', supplierContact: selectedSupplier?.contact,
+            pickupLocation, notes, type: 'VEHICLE',
+            vehicleBrand: v.brand, vehicleModel: v.model, registrationNo: v.regNo,
+            otherInfo: v.otherInfo, alloyWheelsCount: v.alloyWheels,
+            checklist: cl,
+            logisticsMethod: vMethod,
+            collectionDate: vLogistics ? vLogistics.collectionDate : collectionDate,
+            driverName: vDriverName,
+            transportCompanyName: vIsHired ? (vLogistics?.transportCompanyId || transportCompanyName) : undefined,
+            transportTripFee: vIsHired ? (vLogistics ? parseFloat(vLogistics.transportTripFee) || 0 : parseFloat(transportTripFee) || 0) : undefined,
+            agreedPrice: vPrice, advancePaid: advancePaidNum,
+            advanceDeduction: calculatedAdvanceDeduction,
+            balanceDue: Math.max(0, vPrice - calculatedAdvanceDeduction - advancePaidNum),
+            paymentStatus, paymentMethod,
+          });
         }
         setMessage({ type: 'success', text: `${results.length} vehicle${results.length > 1 ? 's' : ''} recorded: ${results.join(', ')}` });
         const first = newBulkVehicle();
@@ -378,18 +415,35 @@ export default function PurchasesPage() {
           Object.assign(body, { lotName, scrapDescription, grossTonnageEstimate: parseFloat(grossTonnageEstimate) || 0, scrapPhoto: [photoFront, photoSide, photoDetail].filter(Boolean).join(','), lineItems });
         }
         const res  = await fetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to record purchase');
-        setMessage({ type: 'success', text: `Purchase recorded: ${data.id}` });
+        const saved = await res.json();
+        if (!res.ok) throw new Error(saved.error || 'Failed to record purchase');
+        setMessage({ type: 'success', text: `Purchase recorded: ${saved.id}` });
+        savedInvoices.push({
+          id: saved.id, date: saved.date ?? new Date().toISOString(),
+          supplierName: selectedSupplier?.name ?? '', supplierContact: selectedSupplier?.contact,
+          pickupLocation, notes, type,
+          lotName: type === 'LOOSE_SCRAP' ? looseMaterial : lotName,
+          scrapDescription: type === 'LOOSE_SCRAP' ? `${looseQty} ${looseUnit} @ B$${looseRate}/${looseUnit}` : scrapDescription,
+          grossTonnageEstimate: type === 'LOOSE_SCRAP' ? parseFloat(looseQty) || 0 : parseFloat(grossTonnageEstimate) || 0,
+          lineItems: type === 'LOOSE_SCRAP'
+            ? [{ material: looseMaterial, qty: looseQty, unit: looseUnit, rate: looseRate }]
+            : lineItems,
+          logisticsMethod, collectionDate, driverName: sharedBase.driverName,
+          transportCompanyName: (logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY') ? transportCompanyName : undefined,
+          transportTripFee: (logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY') ? parseFloat(transportTripFee) || 0 : undefined,
+          agreedPrice: computedAgreedPrice, advancePaid: advancePaidNum,
+          advanceDeduction: calculatedAdvanceDeduction,
+          balanceDue, paymentStatus, paymentMethod,
+        });
       }
       // Reset shared fields
-      setPickupLocation(''); setNotes(''); setDriverName(''); setAgreedPrice(''); setAdvancePaid('0');
+      setPickupLocation(''); setNotes(''); setDriverName(''); setDriverNames([]); setDriverInput(''); setCrewCount(''); setAgreedPrice(''); setAdvancePaid('0');
       setLineItems([]); setLooseMaterial(''); setLooseCode(''); setLooseCodeEnabled(false); setLooseQty(''); setLooseRate('');
       setPhotoFront(''); setPhotoSide(''); setPhotoDetail('');
       setSelectedSupplier(null); setSupplierId('');
       const first = newBulkVehicle(); setBulkVehicles([first]); setExpandedBulkId(first.id);
       await fetchData();
-      if (print) window.print();
+      if (print) savedInvoices.forEach(inv => printPurchaseInvoice(inv));
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
@@ -406,6 +460,30 @@ export default function PurchasesPage() {
       setEditingSupplier(null);
       fetchData();
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
+  };
+
+  const reprintPurchase = (p: Purchase) => {
+    const checklist = [
+      { label: 'Engine', checked: p.engineIntact ?? true },
+      { label: 'Gearbox', checked: p.gearboxPresent ?? true },
+      { label: 'Catalytic', checked: p.catalyticConverter ?? true },
+      { label: 'Battery', checked: p.battery ?? true },
+      { label: 'Radiator', checked: p.radiator ?? true },
+      { label: 'Wiring', checked: p.wiring ?? true },
+    ];
+    printPurchaseInvoice({
+      id: p.id, date: p.date, supplierName: p.supplier?.name ?? '', supplierContact: p.supplier?.contact,
+      pickupLocation: p.pickupLocation, notes: p.notes, type: p.type,
+      vehicleBrand: p.vehicleBrand, vehicleModel: p.vehicleModel, registrationNo: p.registrationNo,
+      otherInfo: p.otherInfo, alloyWheelsCount: p.alloyWheelsCount, checklist,
+      lotName: p.lotName, scrapDescription: p.scrapDescription, grossTonnageEstimate: p.grossTonnageEstimate,
+      logisticsMethod: p.logisticsMethod, collectionDate: p.collectionDate, driverName: p.driverName,
+      transportCompanyName: p.transportCompany?.name, transportTripFee: p.transportTripFee,
+      agreedPrice: p.agreedPrice, advancePaid: p.advancePaid ?? 0,
+      advanceDeduction: p.previousAdvanceDeduction,
+      balanceDue: Math.max(0, p.cashToPay - (p.advancePaid ?? 0)),
+      paymentStatus: p.paymentStatus, paymentMethod: p.paymentMethod,
+    });
   };
 
   const openEditModal = (p: Purchase) => {
@@ -481,7 +559,7 @@ export default function PurchasesPage() {
     setPickupLocation('Kg. Sungai Tilong Scrapyard, Brunei Muara');
     setNotes('Bulk salvage lot — referral from Hj. Rosli');
     setLogisticsMethod('OUR_TOW_TRUCK');
-    setDriverName('Sufri bin Haji Damit');
+    setDriverNames(['Sufri bin Haji Damit']); setCrewCount('2');
     setCollectionDate(new Date().toISOString().split('T')[0]);
     setPaymentStatus('PARTIAL');
     setPaymentMethod('CASH');
@@ -504,7 +582,8 @@ export default function PurchasesPage() {
         logistics: {
           logisticsMethod: 'OUR_TOW_TRUCK' as LogisticsMethod,
           collectionDate: today,
-          driverName: 'Sufri bin Haji Damit',
+          driverNames: ['Sufri bin Haji Damit'],
+          crewCount: '2',
           transportCompanyId: '',
           transportTripFee: '0',
         },
@@ -521,7 +600,8 @@ export default function PurchasesPage() {
         logistics: {
           logisticsMethod: 'HIRED_TOW_TRUCK' as LogisticsMethod,
           collectionDate: today,
-          driverName: '',
+          driverNames: [],
+          crewCount: '',
           transportCompanyId: 'Syarikat Towing Maju',
           transportTripFee: '80',
         },
@@ -538,7 +618,8 @@ export default function PurchasesPage() {
         logistics: {
           logisticsMethod: 'OUR_LORRY' as LogisticsMethod,
           collectionDate: tomorrow,
-          driverName: 'Hairul bin Metali',
+          driverNames: ['Hairul bin Metali'],
+          crewCount: '',
           transportCompanyId: '',
           transportTripFee: '0',
         },
@@ -780,7 +861,7 @@ export default function PurchasesPage() {
                                     const cur = v.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK';
                                     return (
                                       <button key={opt.value} type="button"
-                                        onClick={() => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { logisticsMethod: opt.value, collectionDate: x.logistics?.collectionDate ?? collectionDate, driverName: x.logistics?.driverName ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))}
+                                        onClick={() => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { logisticsMethod: opt.value, collectionDate: x.logistics?.collectionDate ?? collectionDate, driverNames: x.logistics?.driverNames ?? [], crewCount: x.logistics?.crewCount ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))}
                                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '10px 6px', borderRadius: '10px', cursor: 'pointer', border: cur === opt.value ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)', background: cur === opt.value ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.02)', color: cur === opt.value ? '#e8d5a3' : '#64748b', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center', transition: 'all 0.15s ease' }}>
                                         <span style={{ color: cur === opt.value ? '#c9a84c' : '#64748b' }}>{opt.icon}</span>
                                         {opt.label}
@@ -791,11 +872,34 @@ export default function PurchasesPage() {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                   <div className="form-group">
                                     <label>Collection Date</label>
-                                    <input type="date" className="form-input" value={v.logistics?.collectionDate ?? collectionDate} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: e.target.value, driverName: x.logistics?.driverName ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))} />
+                                    <input type="date" className="form-input" value={v.logistics?.collectionDate ?? collectionDate} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: e.target.value, driverNames: x.logistics?.driverNames ?? [], crewCount: x.logistics?.crewCount ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))} />
                                   </div>
                                   <div className="form-group">
-                                    <label>Driver / Operator</label>
-                                    <input type="text" className="form-input" placeholder="e.g. Sufri" value={v.logistics?.driverName ?? ''} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: x.logistics?.collectionDate ?? collectionDate, driverName: e.target.value, transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))} />
+                                    <label>Crew Count (total in vehicle)</label>
+                                    <input type="number" className="form-input" min={1} placeholder="e.g. 2" value={v.logistics?.crewCount ?? ''} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: x.logistics?.collectionDate ?? collectionDate, driverNames: x.logistics?.driverNames ?? [], crewCount: e.target.value, transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x))} />
+                                  </div>
+                                </div>
+                                {/* Multi-driver tags */}
+                                <div className="form-group">
+                                  <label>Driver(s) / Operator(s)</label>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
+                                    {(v.logistics?.driverNames ?? []).map((dn, di) => (
+                                      <span key={di} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', color: '#e8d5a3', fontSize: '0.82rem', fontWeight: 600 }}>
+                                        {dn}
+                                        <button type="button" onClick={() => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics!.logisticsMethod, collectionDate: x.logistics!.collectionDate, driverNames: (x.logistics?.driverNames ?? []).filter((_, i) => i !== di), crewCount: x.logistics?.crewCount ?? '', transportCompanyId: x.logistics!.transportCompanyId, transportTripFee: x.logistics!.transportTripFee } } : x))} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={11} /></button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                    <input
+                                      type="text" className="form-input" placeholder="Type name, press Enter"
+                                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const val = (e.target as HTMLInputElement).value.trim(); if (val) { setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: x.logistics?.collectionDate ?? collectionDate, driverNames: [...(x.logistics?.driverNames ?? []), val], crewCount: x.logistics?.crewCount ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x)); (e.target as HTMLInputElement).value = ''; } } }}
+                                      style={{ flex: 1 }}
+                                    />
+                                    <button type="button" className="btn-outline" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
+                                      onClick={e => { const inp = (e.currentTarget.previousSibling as HTMLInputElement); const val = inp.value.trim(); if (val) { setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics?.logisticsMethod ?? 'OUR_TOW_TRUCK', collectionDate: x.logistics?.collectionDate ?? collectionDate, driverNames: [...(x.logistics?.driverNames ?? []), val], crewCount: x.logistics?.crewCount ?? '', transportCompanyId: x.logistics?.transportCompanyId ?? '', transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x)); inp.value = ''; } }}>
+                                      <Plus size={13} /> Add
+                                    </button>
                                   </div>
                                 </div>
                                 {(v.logistics?.logisticsMethod === 'HIRED_TOW_TRUCK' || v.logistics?.logisticsMethod === 'HIRED_LORRY') && (
@@ -804,12 +908,12 @@ export default function PurchasesPage() {
                                       <label>Towing Company</label>
                                       <input list="transporter-list" className="form-input" placeholder="Type company name..." value={v.logistics?.transportCompanyId ?? ''} onChange={e => {
                                         const match = transporters.find(t => t.name === e.target.value);
-                                        setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics!.logisticsMethod, collectionDate: x.logistics!.collectionDate, driverName: x.logistics!.driverName, transportCompanyId: match ? match.id.toString() : e.target.value, transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x));
+                                        setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics!.logisticsMethod, collectionDate: x.logistics!.collectionDate, driverNames: x.logistics?.driverNames ?? [], crewCount: x.logistics?.crewCount ?? '', transportCompanyId: match ? match.id.toString() : e.target.value, transportTripFee: x.logistics?.transportTripFee ?? '80.00' } } : x));
                                       }} />
                                     </div>
                                     <div className="form-group">
                                       <label>Trip Fee (BND)</label>
-                                      <input type="number" className="form-input" value={v.logistics?.transportTripFee ?? '80.00'} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics!.logisticsMethod, collectionDate: x.logistics!.collectionDate, driverName: x.logistics!.driverName, transportCompanyId: x.logistics!.transportCompanyId, transportTripFee: e.target.value } } : x))} />
+                                      <input type="number" className="form-input" value={v.logistics?.transportTripFee ?? '80.00'} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, logistics: { ...x.logistics!, logisticsMethod: x.logistics!.logisticsMethod, collectionDate: x.logistics!.collectionDate, driverNames: x.logistics?.driverNames ?? [], crewCount: x.logistics?.crewCount ?? '', transportCompanyId: x.logistics!.transportCompanyId, transportTripFee: e.target.value } } : x))} />
                                     </div>
                                   </div>
                                 )}
@@ -996,9 +1100,27 @@ export default function PurchasesPage() {
                 <input type="date" className="form-input" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
               </div>
 
+              <div className="col-8 form-group">
+                <label>Driver(s) / Operator(s)</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
+                  {driverNames.map((dn, di) => (
+                    <span key={di} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', color: '#e8d5a3', fontSize: '0.82rem', fontWeight: 600 }}>
+                      {dn}
+                      <button type="button" onClick={() => setDriverNames(driverNames.filter((_, i) => i !== di))} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={11} /></button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input type="text" className="form-input" placeholder="Type name, press Enter" value={driverInput} onChange={e => setDriverInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDriver(driverInput, setDriverInput, driverNames, setDriverNames); } }} />
+                  <button type="button" className="btn-outline" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }} onClick={() => addDriver(driverInput, setDriverInput, driverNames, setDriverNames)}>
+                    <Plus size={13} /> Add
+                  </button>
+                </div>
+              </div>
               <div className="col-4 form-group">
-                <label>Assigned Driver / Operator</label>
-                <input type="text" className="form-input" placeholder="e.g. Sufri" value={driverName} onChange={(e) => setDriverName(e.target.value)} />
+                <label>Crew Count (total in vehicle)</label>
+                <input type="number" className="form-input" min={1} placeholder="e.g. 2" value={crewCount} onChange={e => setCrewCount(e.target.value)} />
               </div>
 
               {(logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY') ? (
@@ -1209,6 +1331,7 @@ export default function PurchasesPage() {
                       <code style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 700 }}>{p.id}</code>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span className={`badge ${p.paymentStatus === 'PAID' ? 'badge-success' : p.paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '0.7rem' }}>{p.paymentStatus}</span>
+                        <button type="button" onClick={() => reprintPurchase(p)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><Printer size={11} /></button>
                         <button type="button" onClick={() => openEditModal(p)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><Pencil size={11} /></button>
                       </div>
                     </div>
