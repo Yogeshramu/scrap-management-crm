@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Users, Save, X, Pencil, Briefcase, Phone, CreditCard } from 'lucide-react';
+import { Plus, Users, Save, X, Pencil, Briefcase, Phone, CreditCard, AlertTriangle } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
 import FileUpload from '../../components/FileUpload';
@@ -13,6 +13,7 @@ interface Employee {
   icNumber?: string;
   passportNumber?: string;
   country?: string;
+  visaExpiry?: string;
   phone?: string;
   position?: string;
   department?: string;
@@ -33,7 +34,26 @@ export default function EmployeesPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const blank = { name: '', icNumber: '', passportNumber: '', country: '', phone: '', position: 'Driver', department: 'Operations', salary: '', bankAccount: '', bankName: '', joinDate: new Date().toISOString().split('T')[0], photo: '', documents: '' };
+  const loadTestData = async () => {
+    setForm({
+      name: 'Md. Karim Uddin',
+      icNumber: '',
+      passportNumber: 'BD-9876543',
+      country: 'Bangladesh',
+      visaExpiry: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+      phone: '+673 8234567',
+      position: 'General Labour',
+      department: 'Operations',
+      salary: '35',
+      bankName: 'Bank Islam',
+      bankAccount: '9876543210',
+      joinDate: '2024-03-01',
+      photo: '',
+      documents: '',
+    });
+  };
+
+  const blank = { name: '', icNumber: '', passportNumber: '', country: '', visaExpiry: '', phone: '', position: 'Driver', department: 'Operations', salary: '', bankAccount: '', bankName: '', joinDate: new Date().toISOString().split('T')[0], photo: '', documents: '' };
   const [form, setForm] = useState<any>(blank);
 
   useEffect(() => { fetchEmployees(); }, []);
@@ -48,7 +68,7 @@ export default function EmployeesPage() {
   const openAdd = () => { setEditing(null); setForm(blank); setShowModal(true); };
   const openEdit = (e: Employee) => {
     setEditing(e);
-    setForm({ name: e.name, icNumber: e.icNumber || '', passportNumber: (e as any).passportNumber || '', country: (e as any).country || '', phone: e.phone || '', position: e.position || 'Driver', department: e.department || 'Operations', salary: e.salary.toString(), bankAccount: e.bankAccount || '', bankName: e.bankName || '', joinDate: e.joinDate.split('T')[0], photo: (e as any).photo || '', documents: (e as any).documents || '' });
+    setForm({ name: e.name, icNumber: e.icNumber || '', passportNumber: (e as any).passportNumber || '', country: (e as any).country || '', visaExpiry: (e as any).visaExpiry ? new Date((e as any).visaExpiry).toISOString().split('T')[0] : '', phone: e.phone || '', position: e.position || 'Driver', department: e.department || 'Operations', salary: e.salary.toString(), bankAccount: e.bankAccount || '', bankName: e.bankName || '', joinDate: e.joinDate.split('T')[0], photo: (e as any).photo || '', documents: (e as any).documents || '' });
     setShowModal(true);
   };
 
@@ -69,6 +89,17 @@ export default function EmployeesPage() {
   };
 
   const active = employees.filter(e => e.status === 'Active').length;
+  const today = new Date();
+  const in30 = new Date(); in30.setDate(today.getDate() + 30);
+  const visaExpiring = employees.filter(e => { if (!(e as any).visaExpiry) return false; const d = new Date((e as any).visaExpiry); return d <= in30; }).length;
+  const getVisaBadge = (visaExpiry?: string) => {
+    if (!visaExpiry) return <span style={{ color: '#475569' }}>—</span>;
+    const exp = new Date(visaExpiry);
+    const diff = Math.ceil((exp.getTime() - today.getTime()) / 86400000);
+    if (diff < 0) return <span className="badge" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>Expired</span>;
+    if (diff <= 30) return <span className="badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>⚠ {exp.toLocaleDateString()}</span>;
+    return <span className="badge badge-success">{exp.toLocaleDateString()}</span>;
+  };
 
   return (
     <div>
@@ -88,7 +119,7 @@ export default function EmployeesPage() {
       )}
 
       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '32px' }}>
-        {loading ? <><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /></> : <>
+        {loading ? <><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /><SkeletonMetricCard /></> : <>
         <div className="metric-card">
           <div className="metric-info"><h3>Total Staff</h3><div className="metric-value">{employees.length}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(201, 168, 76,0.1)', color: '#c9a84c' }}><Users size={22} /></div>
@@ -101,13 +132,17 @@ export default function EmployeesPage() {
           <div className="metric-info"><h3>Avg. Daily Rate</h3><div className="metric-value">B$ {active === 0 ? '0.00' : (employees.filter(e => e.status === 'Active').reduce((s, e) => s + e.salary, 0) / active).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(232, 213, 163,0.1)', color: '#e8d5a3' }}><CreditCard size={22} /></div>
         </div>
+        <div className="metric-card">
+          <div className="metric-info"><h3>Visa Alerts</h3><div className="metric-value" style={{ color: visaExpiring > 0 ? '#f59e0b' : '#10b981' }}>{visaExpiring}</div></div>
+          <div className="metric-icon-wrap" style={{ background: visaExpiring > 0 ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)', color: visaExpiring > 0 ? '#f59e0b' : '#10b981' }}><AlertTriangle size={22} /></div>
+        </div>
         </>}
       </div>
 
       <div className="glass-panel">
         <div className="table-wrapper">
           <table className="custom-table">
-            <thead><tr><th>ID</th><th>Name</th><th>Position</th><th>Department</th><th>Phone</th><th>Bank</th><th>Daily Rate (BND)</th><th>Status</th><th>Join Date</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Name</th><th>Position</th><th>Department</th><th>Phone</th><th>Bank</th><th>Daily Rate (BND)</th><th>Visa Expiry</th><th>Status</th><th>Join Date</th><th></th></tr></thead>
             <tbody>
               {loading ? <SkeletonTableRows cols={10} rows={5} /> : employees.length === 0 ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', color: '#64748b' }}>No employees registered yet.</td></tr>
@@ -120,6 +155,7 @@ export default function EmployeesPage() {
                   <td style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={13} style={{ opacity: 0.5 }} />{e.phone || '—'}</td>
                   <td style={{ fontSize: '0.85rem' }}>{e.bankName ? `${e.bankName} ···${e.bankAccount?.slice(-4)}` : '—'}</td>
                   <td style={{ fontWeight: 650 }}>B$ {e.salary.toFixed(2)}/day</td>
+                  <td>{getVisaBadge((e as any).visaExpiry)}</td>
                   <td><span className={`badge ${e.status === 'Active' ? 'badge-success' : 'badge-neutral'}`}>{e.status}</span></td>
                   <td>{new Date(e.joinDate).toLocaleDateString()}</td>
                   <td>
@@ -139,7 +175,14 @@ export default function EmployeesPage() {
           <div className="modal-content" style={{ maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
             <div className="flex-between" style={{ marginBottom: '20px' }}>
               <h2 className="modal-title" style={{ margin: 0 }}>{editing ? `Edit — ${editing.employeeId}` : 'Register New Employee'}</h2>
-              <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowModal(false)}><X size={20} /></button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {!editing && (
+                  <button type="button" className="btn-outline" onClick={loadTestData} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+                    ⚡ Load Test Data
+                  </button>
+                )}
+                <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setShowModal(false)}><X size={20} /></button>
+              </div>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
@@ -158,6 +201,10 @@ export default function EmployeesPage() {
                 <div className="col-6 form-group">
                   <label>Country</label>
                   <input type="text" className="form-input" placeholder="e.g. Bangladesh, Malaysia" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} />
+                </div>
+                <div className="col-6 form-group">
+                  <label>Visa Expiry Date</label>
+                  <input type="date" className="form-input" value={form.visaExpiry} onChange={e => setForm({ ...form, visaExpiry: e.target.value })} />
                 </div>
                 <div className="col-6 form-group">
                   <label>Phone</label>

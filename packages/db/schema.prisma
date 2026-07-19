@@ -221,6 +221,7 @@ model Employee {
   icNumber     String?
   passportNumber String?
   country      String?
+  visaExpiry   DateTime?
   phone        String?
   position     String?
   department   String?

@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   TrendingDown, TrendingUp, Users, Truck, Car,
   AlertTriangle, ShieldCheck, FileText,
-  ArrowUpRight, ArrowDownRight, RefreshCw
+  ArrowUpRight, ArrowDownRight, RefreshCw, X
 } from 'lucide-react';
 import { SkeletonMetricCard, SkeletonTableRows, SkeletonBox } from '../../components/Skeleton';
+
+interface VisaAlert { id: number; employeeId: string; name: string; visaExpiry: string; daysLeft: number; }
 
 interface Alert {
   id: number;
@@ -55,6 +57,8 @@ export default function OverviewDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [visaToasts, setVisaToasts] = useState<VisaAlert[]>([]);
+  const toastShown = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,6 +98,28 @@ export default function OverviewDashboard() {
     }
     fetchData();
 
+    if (!toastShown.current) {
+      toastShown.current = true;
+      fetch('/api/employees')
+        .then(r => r.json())
+        .then((emps: any[]) => {
+          if (!Array.isArray(emps)) return;
+          const today = new Date();
+          const in30 = new Date(); in30.setDate(today.getDate() + 30);
+          const alerts = emps
+            .filter(e => e.visaExpiry && new Date(e.visaExpiry) <= in30)
+            .map(e => ({
+              id: e.id,
+              employeeId: e.employeeId,
+              name: e.name,
+              visaExpiry: e.visaExpiry,
+              daysLeft: Math.ceil((new Date(e.visaExpiry).getTime() - today.getTime()) / 86400000),
+            }));
+          if (alerts.length > 0) setVisaToasts(alerts);
+        })
+        .catch(() => {});
+    }
+
     return () => {
       cancelled = true;
       clearTimeout(timeoutId);
@@ -103,6 +129,22 @@ export default function OverviewDashboard() {
 
   return (
     <div>
+      {visaToasts.length > 0 && (
+        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '360px' }}>
+          {visaToasts.map(t => (
+            <div key={t.id} style={{ background: t.daysLeft < 0 ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)', border: `1px solid ${t.daysLeft < 0 ? 'rgba(239,68,68,0.4)' : 'rgba(245,158,11,0.4)'}`, borderRadius: '12px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start', backdropFilter: 'blur(8px)' }}>
+              <AlertTriangle size={18} style={{ color: t.daysLeft < 0 ? '#ef4444' : '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.9rem' }}>{t.name} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({t.employeeId})</span></div>
+                <div style={{ fontSize: '0.82rem', color: t.daysLeft < 0 ? '#ef4444' : '#f59e0b', marginTop: '3px' }}>
+                  {t.daysLeft < 0 ? `Visa expired ${Math.abs(t.daysLeft)} days ago` : `Visa expires in ${t.daysLeft} day${t.daysLeft === 1 ? '' : 's'}`}
+                </div>
+              </div>
+              <button onClick={() => setVisaToasts(prev => prev.filter(x => x.id !== t.id))} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0 }}><X size={15} /></button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="page-header">
         <div>
           <h1>Operations Control Overview</h1>

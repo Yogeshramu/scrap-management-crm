@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   if (deny) return deny;
   try {
     const body = await req.json();
-    const { name, icNumber, passportNumber, country, phone, position, department, salary, bankAccount, bankName, joinDate } = body;
+    const { name, icNumber, passportNumber, country, visaExpiry, phone, position, department, salary, bankAccount, bankName, joinDate } = body;
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
     const count = await prisma.employee.count();
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
         icNumber,
         passportNumber,
         country,
+        visaExpiry: visaExpiry ? new Date(visaExpiry) : null,
         phone,
         position,
         department,
