@@ -11,6 +11,8 @@ interface Employee {
   employeeId: string;
   name: string;
   icNumber?: string;
+  passportNumber?: string;
+  country?: string;
   phone?: string;
   position?: string;
   department?: string;
@@ -22,7 +24,7 @@ interface Employee {
 }
 
 const DEPARTMENTS = ['Operations', 'Logistics', 'Admin', 'Workshop', 'Management'];
-const POSITIONS = ['Driver', 'Loader', 'Mechanic', 'Clerk', 'Supervisor', 'Manager'];
+const POSITIONS = ['Driver', 'Mechanic', 'Machine Operator', 'Forklift Operator', 'General Labour', 'Welder', 'Waste Collector'];
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -31,7 +33,7 @@ export default function EmployeesPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const blank = { name: '', icNumber: '', phone: '', position: 'Driver', department: 'Operations', salary: '', bankAccount: '', bankName: '', joinDate: new Date().toISOString().split('T')[0], photo: '', documents: '' };
+  const blank = { name: '', icNumber: '', passportNumber: '', country: '', phone: '', position: 'Driver', department: 'Operations', salary: '', bankAccount: '', bankName: '', joinDate: new Date().toISOString().split('T')[0], photo: '', documents: '' };
   const [form, setForm] = useState<any>(blank);
 
   useEffect(() => { fetchEmployees(); }, []);
@@ -46,7 +48,7 @@ export default function EmployeesPage() {
   const openAdd = () => { setEditing(null); setForm(blank); setShowModal(true); };
   const openEdit = (e: Employee) => {
     setEditing(e);
-    setForm({ name: e.name, icNumber: e.icNumber || '', phone: e.phone || '', position: e.position || 'Driver', department: e.department || 'Operations', salary: e.salary.toString(), bankAccount: e.bankAccount || '', bankName: e.bankName || '', joinDate: e.joinDate.split('T')[0], photo: (e as any).photo || '', documents: (e as any).documents || '' });
+    setForm({ name: e.name, icNumber: e.icNumber || '', passportNumber: (e as any).passportNumber || '', country: (e as any).country || '', phone: e.phone || '', position: e.position || 'Driver', department: e.department || 'Operations', salary: e.salary.toString(), bankAccount: e.bankAccount || '', bankName: e.bankName || '', joinDate: e.joinDate.split('T')[0], photo: (e as any).photo || '', documents: (e as any).documents || '' });
     setShowModal(true);
   };
 
@@ -96,7 +98,7 @@ export default function EmployeesPage() {
           <div className="metric-icon-wrap" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><Briefcase size={22} /></div>
         </div>
         <div className="metric-card">
-          <div className="metric-info"><h3>Monthly Payroll</h3><div className="metric-value">B$ {employees.filter(e => e.status === 'Active').reduce((s, e) => s + e.salary, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div></div>
+          <div className="metric-info"><h3>Avg. Daily Rate</h3><div className="metric-value">B$ {active === 0 ? '0.00' : (employees.filter(e => e.status === 'Active').reduce((s, e) => s + e.salary, 0) / active).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div></div>
           <div className="metric-icon-wrap" style={{ background: 'rgba(232, 213, 163,0.1)', color: '#e8d5a3' }}><CreditCard size={22} /></div>
         </div>
         </>}
@@ -105,7 +107,7 @@ export default function EmployeesPage() {
       <div className="glass-panel">
         <div className="table-wrapper">
           <table className="custom-table">
-            <thead><tr><th>ID</th><th>Name</th><th>Position</th><th>Department</th><th>Phone</th><th>Bank</th><th>Monthly Salary</th><th>Status</th><th>Join Date</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Name</th><th>Position</th><th>Department</th><th>Phone</th><th>Bank</th><th>Daily Rate (BND)</th><th>Status</th><th>Join Date</th><th></th></tr></thead>
             <tbody>
               {loading ? <SkeletonTableRows cols={10} rows={5} /> : employees.length === 0 ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', color: '#64748b' }}>No employees registered yet.</td></tr>
@@ -117,7 +119,7 @@ export default function EmployeesPage() {
                   <td>{e.department || '—'}</td>
                   <td style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={13} style={{ opacity: 0.5 }} />{e.phone || '—'}</td>
                   <td style={{ fontSize: '0.85rem' }}>{e.bankName ? `${e.bankName} ···${e.bankAccount?.slice(-4)}` : '—'}</td>
-                  <td style={{ fontWeight: 650 }}>B$ {e.salary.toFixed(2)}</td>
+                  <td style={{ fontWeight: 650 }}>B$ {e.salary.toFixed(2)}/day</td>
                   <td><span className={`badge ${e.status === 'Active' ? 'badge-success' : 'badge-neutral'}`}>{e.status}</span></td>
                   <td>{new Date(e.joinDate).toLocaleDateString()}</td>
                   <td>
@@ -146,8 +148,16 @@ export default function EmployeesPage() {
                   <input type="text" className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
                 </div>
                 <div className="col-6 form-group">
-                  <label>IC / Passport Number</label>
+                  <label>IC Number</label>
                   <input type="text" className="form-input" value={form.icNumber} onChange={e => setForm({ ...form, icNumber: e.target.value })} />
+                </div>
+                <div className="col-6 form-group">
+                  <label>Passport Number</label>
+                  <input type="text" className="form-input" value={form.passportNumber} onChange={e => setForm({ ...form, passportNumber: e.target.value })} />
+                </div>
+                <div className="col-6 form-group">
+                  <label>Country</label>
+                  <input type="text" className="form-input" placeholder="e.g. Bangladesh, Malaysia" value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} />
                 </div>
                 <div className="col-6 form-group">
                   <label>Phone</label>
@@ -166,7 +176,7 @@ export default function EmployeesPage() {
                   <CustomSelect value={form.department} onChange={v => setForm({ ...form, department: v })} options={DEPARTMENTS.map(d => ({ value: d, label: d }))} required />
                 </div>
                 <div className="col-4 form-group">
-                  <label>Monthly Salary (BND)</label>
+                  <label>Daily Rate (BND)</label>
                   <input type="number" className="form-input" placeholder="0.00" value={form.salary} onChange={e => setForm({ ...form, salary: e.target.value })} required />
                 </div>
                 <div className="col-4 form-group">

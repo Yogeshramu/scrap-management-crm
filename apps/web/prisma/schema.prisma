@@ -206,6 +206,8 @@ model Employee {
   employeeId   String       @unique // e.g. EMP-001
   name         String
   icNumber     String?
+  passportNumber String?
+  country      String?
   phone        String?
   position     String?
   department   String?

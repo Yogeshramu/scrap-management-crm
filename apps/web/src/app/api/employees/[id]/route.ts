@@ -19,10 +19,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   try {
     const body = await req.json();
-    const { name, icNumber, phone, position, department, salary, bankAccount, bankName, status } = body;
+    const { name, icNumber, passportNumber, country, phone, position, department, salary, bankAccount, bankName, status, joinDate } = body;
     const employee = await prisma.employee.update({
       where: { id: parseInt(id) },
-      data: { name, icNumber, phone, position, department, salary: parseFloat(salary) || 0, bankAccount, bankName, status },
+      data: { name, icNumber, passportNumber, country, phone, position, department, salary: parseFloat(salary) || 0, bankAccount, bankName, status, joinDate: joinDate ? new Date(joinDate) : undefined },
     });
     return NextResponse.json(employee);
   } catch (err: any) {
