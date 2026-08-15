@@ -20,6 +20,7 @@ import {
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonTableRows, SkeletonBox } from '../../components/Skeleton';
 import FileUpload from '../../components/FileUpload';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface MaintenanceLog {
   id: number;
@@ -128,7 +129,7 @@ export default function VehiclesPage() {
     e.preventDefault();
     if (!editingVehicle) return;
     try {
-      const res = await fetch(`/api/vehicles/${editingVehicle.id}`, {
+      const res = await apiFetch(`/api/vehicles/${editingVehicle.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editVName, type: editVType, brand: editVBrand, model: editVModel, year: editVYear, roadTaxExpiry: editVRoadTax, insuranceExpiry: editVInsurance, inspectionExpiry: editVInspection })
@@ -146,7 +147,7 @@ export default function VehiclesPage() {
 
   const fetchVehicles = async () => {
     try {
-      const res = await fetch('/api/vehicles');
+      const res = await apiFetch('/api/vehicles');
       const data = await res.json();
       setVehicles(data);
       if (data.length > 0 && !currentVehicle) {
@@ -158,7 +159,7 @@ export default function VehiclesPage() {
   const fetchVehicleDetail = async (id: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/vehicles?id=${id}`);
+      const res = await apiFetch(`/api/vehicles?id=${id}`);
       setCurrentVehicle(await res.json());
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
@@ -171,7 +172,7 @@ export default function VehiclesPage() {
     }
 
     try {
-      const res = await fetch('/api/vehicles', {
+      const res = await apiFetch('/api/vehicles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -200,7 +201,7 @@ export default function VehiclesPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/vehicles/${currentVehicle?.id}/maintenance`, {
+      const res = await apiFetch(`/api/vehicles/${currentVehicle?.id}/maintenance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -226,7 +227,7 @@ export default function VehiclesPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/vehicles/${currentVehicle?.id}/fuel`, {
+      const res = await apiFetch(`/api/vehicles/${currentVehicle?.id}/fuel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

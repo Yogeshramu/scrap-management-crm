@@ -16,7 +16,7 @@ model Supplier {
   outstandingAdvance Float      @default(0.0)
   bankName           String?
   bankAccount        String?
-  documents          String?
+  documents          String?    // JSON array of doc URLs
   purchases          Purchase[]
   createdAt          DateTime   @default(now())
 }
@@ -38,11 +38,6 @@ model Purchase {
   createdBy                String?           @default("Manager")
   createdAt                DateTime          @default(now())
 
-  // General fields
-  notes                    String?
-  collectionDate           DateTime?
-  advancePaid              Float?            @default(0.0)
-
   // Specific Columns for VEHICLE mode
   vehicleBrand             String?
   vehicleModel             String?
@@ -56,6 +51,9 @@ model Purchase {
   wiring                   Boolean?
   alloyWheelsCount         Int?              @default(0)
   vehiclePhoto             String?           // Image file/URL
+  collectionDate           DateTime?
+  advancePaid              Float?            @default(0.0)
+  notes                    String?
 
   // Specific Columns for MIXED SCRAP / LOOSE SCRAP mode
   lotName                  String?
@@ -64,6 +62,7 @@ model Purchase {
   scrapPhoto               String?           // Image file/URL
   grossTonnageEstimate     Float?            // Gross Lot Tonnage in KG
   scrapLineItems           ScrapLineItem[]
+  purchaseItems            PurchaseItem[]
 
   // Transporter (if Towing / HIAB is external)
   transportCompanyId       Int?
@@ -72,17 +71,52 @@ model Purchase {
   transportTripFee         Float?            @default(0.0)
   transportPaymentStatus   String?           @default("UNPAID") // "PAID", "UNPAID", "N/A"
   transportPaymentId       Int?
+
+  @@index([supplierId])
+  @@index([transportCompanyId])
+  @@index([date])
+  @@index([type, date])
+  @@index([transportCompanyId, transportPaymentStatus])
 }
 
 model ScrapLineItem {
   id         Int      @id @default(autoincrement())
   purchaseId String
   purchase   Purchase @relation(fields: [purchaseId], references: [id])
-  material   String   // e.g. "Copper", "Iron", "Aluminium"
+  material   String
   qty        Float
-  unit       String   // e.g. "KG", "PCS", "TON"
-  rate       Float    // price per unit
-  amount     Float    // qty * rate
+  unit       String
+  rate       Float
+  amount     Float
+
+  @@index([purchaseId])
+}
+
+model PurchaseItem {
+  id                 String   @id // Format: PUR-2026-015-1
+  purchaseId         String
+  purchase           Purchase @relation(fields: [purchaseId], references: [id])
+  itemIndex          Int      @default(1)
+  vehicleBrand       String?
+  vehicleModel       String?
+  registrationNo     String?
+  otherInfo          String?
+  engineIntact       Boolean?
+  gearboxPresent     Boolean?
+  catalyticConverter Boolean?
+  battery            Boolean?
+  radiator           Boolean?
+  wiring             Boolean?
+  alloyWheelsCount   Int?     @default(0)
+  agreedPrice        Float    @default(0)
+  logisticsMethod    String?
+  collectionDate     DateTime?
+  driverName         String?
+  transportCompanyId   Int?
+  transportCompanyName String?
+  transportTripFee     Float?  @default(0)
+
+  @@index([purchaseId])
 }
 
 model TransportCompany {
@@ -108,12 +142,15 @@ model TransporterPayment {
 model CashBook {
   id          Int      @id @default(autoincrement())
   date        DateTime @default(now())
-  type        String   // "IN" or "OUT"
-  category    String   // "PURCHASE", "SALE", "ADVANCE", "TRANSPORT", "OTHER"
+  type        String
+  category    String
   amount      Float
-  referenceId String?  // Optional Reference ID (e.g. Purchase INV ID, Sales ID, Transporter Payout ID)
+  referenceId String?
   description String?
   createdAt   DateTime @default(now())
+
+  @@index([date])
+  @@index([type, category])
 }
 
 model Customer {
@@ -131,12 +168,16 @@ model Sale {
   customer          Customer   @relation(fields: [customerId], references: [id])
   subtotal          Float
   grandTotal        Float
-  paymentStatus     String     // "PAID", "PARTIAL", "UNPAID"
+  paymentStatus     String
   paymentReceived   Float      @default(0.0)
   balanceDue        Float      @default(0.0)
-  customerBillPhoto String?    // Uploaded ID/Invoice PDF or Image
+  customerBillPhoto String?
   products          SaleItem[]
   createdAt         DateTime   @default(now())
+
+  @@index([customerId])
+  @@index([date])
+  @@index([paymentStatus])
 }
 
 model SaleItem {
@@ -169,6 +210,11 @@ model VehicleInventory {
   maintenanceLogs    VehicleMaintenance[]
   fuelLogs           VehicleFuel[]
   createdAt          DateTime             @default(now())
+
+  @@index([roadTaxExpiry])
+  @@index([insuranceExpiry])
+  @@index([inspectionExpiry])
+  @@index([status])
 }
 
 model VehicleMaintenance {
@@ -199,6 +245,8 @@ model AuditLog {
   performedBy String
   timestamp   DateTime @default(now())
   details     String?
+
+  @@index([timestamp])
 }
 
 model Employee {
@@ -222,6 +270,9 @@ model Employee {
   createdAt    DateTime     @default(now())
   attendance   Attendance[]
   salaryRecords SalaryRecord[]
+
+  @@index([status])
+  @@index([visaExpiry])
 }
 
 model Attendance {
@@ -229,15 +280,18 @@ model Attendance {
   employeeId Int
   employee   Employee @relation(fields: [employeeId], references: [id])
   date       DateTime
-  status     String   // "PRESENT", "ABSENT", "HALF_DAY", "LEAVE"
+  status     String
   createdAt  DateTime @default(now())
+
+  @@index([employeeId, date])
+  @@unique([employeeId, date])
 }
 
 model SalaryRecord {
   id           Int      @id @default(autoincrement())
   employeeId   Int
   employee     Employee @relation(fields: [employeeId], references: [id])
-  month        Int      // 1-12
+  month        Int
   year         Int
   workingDays  Int
   presentDays  Int
@@ -246,8 +300,11 @@ model SalaryRecord {
   advances     Float    @default(0)
   grossSalary  Float
   netSalary    Float
-  status       String   @default("UNPAID") // "PAID", "UNPAID"
+  status       String   @default("UNPAID")
   createdAt    DateTime @default(now())
+
+  @@unique([employeeId, month, year])
+  @@index([year, month])
 }
 
 model Expense {
@@ -270,4 +327,5 @@ model User {
   role         String   @default("STAFF") // "ADMIN", "MANAGER", "STAFF"
   createdAt    DateTime @default(now())
 }
+
 

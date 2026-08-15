@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useCachedFetch } from '../../lib/useCachedFetch';
+import { dataCache } from '../../lib/cache';
 import {
   Plus,
   Car,
@@ -33,6 +35,7 @@ import CustomSelect from '../../components/CustomSelect';
 import Checklist from '../../components/Checklist';
 import FileUpload from '../../components/FileUpload';
 import { printPurchaseInvoice, type PrintPurchaseData } from '../../components/PrintInvoice';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface Supplier {
   id: number;
@@ -127,6 +130,23 @@ export default function PurchasesPage() {
   const [transporters, setTransporters] = useState<Transporter[]>([]);
   const [loading, setLoading]           = useState(true);
 
+  const { data: suppliersRaw, refresh: refreshSuppliers } = useCachedFetch<Supplier[]>('/api/suppliers', { ttl: 120_000 });
+  const { data: transportersRaw, refresh: refreshTransporters } = useCachedFetch<Transporter[]>('/api/transporters', { ttl: 120_000 });
+  const { data: purchasesRaw, loading: purchasesLoading, refresh: refreshPurchases } = useCachedFetch<Purchase[]>('/api/purchases');
+
+  useEffect(() => {
+    if (suppliersRaw) setSuppliers(suppliersRaw);
+    if (transportersRaw) setTransporters(transportersRaw);
+    if (purchasesRaw) {
+      setPurchases(purchasesRaw);
+      setLoading(purchasesLoading);
+      const year = new Date().getFullYear();
+      const yearPurchases = purchasesRaw.filter((p: Purchase) => p.id.startsWith(`PUR-${year}-`));
+      const lastNum = yearPurchases.length > 0 ? Math.max(...yearPurchases.map((p: Purchase) => parseInt(p.id.split('-')[2]))) : 0;
+      setPreviewPurchaseId(`PUR-${year}-${(lastNum + 1).toString().padStart(3, '0')}`);
+    }
+  }, [suppliersRaw, transportersRaw, purchasesRaw, purchasesLoading]);
+
   // Form state
   const [type, setType]               = useState<'VEHICLE' | 'LOOSE_SCRAP' | 'MIXED_SCRAP'>('VEHICLE');
 
@@ -216,33 +236,8 @@ export default function PurchasesPage() {
   const [previewPurchaseId, setPreviewPurchaseId] = useState<string>(`PUR-${new Date().getFullYear()}-001`);
 
   // ── Edit purchase state ────────────────────────────────────────────────────
+  // ── Edit-in-place mode (loads purchase into main form) ──────────────────
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
-  const [editPickupLocation, setEditPickupLocation] = useState('');
-  const [editNotes, setEditNotes]               = useState('');
-  const [editLogisticsMethod, setEditLogisticsMethod] = useState<LogisticsMethod>('OUR_TOW_TRUCK');
-  const [editCollectionDate, setEditCollectionDate]   = useState('');
-  const [editDriverName, setEditDriverName]     = useState('');
-  const [editPaymentStatus, setEditPaymentStatus]     = useState<PaymentStatus>('UNPAID');
-  const [editPaymentMethod, setEditPaymentMethod]     = useState<PaymentMethod>('CASH');
-  const [editAdvancePaid, setEditAdvancePaid]   = useState('0');
-  const [editVehicleBrand, setEditVehicleBrand] = useState('');
-  const [editVehicleModel, setEditVehicleModel] = useState('');
-  const [editRegistrationNo, setEditRegistrationNo] = useState('');
-  const [editOtherInfo, setEditOtherInfo]       = useState('');
-  const [editComponentChecklist, setEditComponentChecklist] = useState([
-    { label: 'Engine', checked: true },
-    { label: 'Gearbox', checked: true },
-    { label: 'Catalytic', checked: true },
-    { label: 'Battery', checked: true },
-    { label: 'Radiator', checked: true },
-    { label: 'Wiring', checked: true },
-  ]);
-  const [editAlloyWheelsCount, setEditAlloyWheelsCount] = useState(0);
-  const [editLotName, setEditLotName]           = useState('');
-  const [editScrapDescription, setEditScrapDescription] = useState('');
-  const [editGrossTonnageEstimate, setEditGrossTonnageEstimate] = useState('');
-  const [editTransportCompanyId, setEditTransportCompanyId] = useState('');
-  const [editTransportTripFee, setEditTransportTripFee]     = useState('');
 
   // ── New Supplier dialog ────────────────────────────────────────────────────
   const [showSupplierModal, setShowSupplierModal] = useState(false);
@@ -258,29 +253,9 @@ export default function PurchasesPage() {
   const [editSupIce, setEditSupIce]           = useState('');
   const [editSupAdvance, setEditSupAdvance]   = useState('');
 
-  useEffect(() => { fetchData(); }, []);
-
-  const fetchData = async () => {
-    try {
-      const [supRes, transRes, purchaseRes] = await Promise.all([
-        fetch('/api/suppliers'),
-        fetch('/api/transporters'),
-        fetch('/api/purchases'),
-      ]);
-      const [sups, trans, purs] = await Promise.all([supRes.json(), transRes.json(), purchaseRes.json()]);
-      setSuppliers(Array.isArray(sups) ? sups : []);
-      setTransporters(Array.isArray(trans) ? trans : []);
-      const pursList = Array.isArray(purs) ? purs : [];
-      setPurchases(pursList);
-      const year = new Date().getFullYear();
-      const yearPurchases = pursList.filter((p: Purchase) => p.id.startsWith(`PUR-${year}-`));
-      const lastNum = yearPurchases.length > 0 ? Math.max(...yearPurchases.map((p: Purchase) => parseInt(p.id.split('-')[2]))) : 0;
-      setPreviewPurchaseId(`PUR-${year}-${(lastNum + 1).toString().padStart(3, '0')}`);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  const fetchData = () => {
+    dataCache.invalidate('/api/suppliers', '/api/transporters', '/api/purchases');
+    refreshSuppliers(); refreshTransporters(); refreshPurchases();
   };
 
   const refreshNextId = () =>
@@ -298,11 +273,11 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!newSupName) return;
     try {
-      const res  = await fetch('/api/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSupName, contact: newSupContact, iceNumber: newSupIce || null, outstandingAdvance: parseFloat(newSupAdvance) || 0 }) });
+      const res  = await apiFetch('/api/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSupName, contact: newSupContact, iceNumber: newSupIce || null, outstandingAdvance: parseFloat(newSupAdvance) || 0 }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create supplier');
       setMessage({ type: 'success', text: `Created supplier card: ${newSupName}` });
-      await fetchData();
+      fetchData();
       setSupplierId(data.id.toString());
       setSelectedSupplier(data);
       setShowSupplierModal(false);
@@ -310,20 +285,30 @@ export default function PurchasesPage() {
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
 
-  const computedAgreedPrice =
-    type === 'MIXED_SCRAP' ? lineItems.reduce((acc, item) => acc + (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0), 0)
-    : type === 'LOOSE_SCRAP' ? (parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)
-    : type === 'VEHICLE' ? bulkVehicles.reduce((s, v) => s + (parseFloat(v.price) || 0), 0)
-    : parseFloat(agreedPrice) || 0;
+  const computedAgreedPrice = useMemo(() => {
+    return type === 'MIXED_SCRAP' ? lineItems.reduce((acc, item) => acc + (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0), 0)
+      : type === 'LOOSE_SCRAP' ? (parseFloat(looseQty) || 0) * (parseFloat(looseRate) || 0)
+      : type === 'VEHICLE' ? bulkVehicles.reduce((s, v) => s + (parseFloat(v.price) || 0), 0)
+      : parseFloat(agreedPrice) || 0;
+  }, [type, lineItems, looseQty, looseRate, bulkVehicles, agreedPrice]);
 
-  const fullDeduction = selectedSupplier ? Math.min(selectedSupplier.outstandingAdvance, computedAgreedPrice) : 0;
-  const calculatedAdvanceDeduction = applyAdvanceDeduction
-    ? (customDeductionMode
-        ? Math.min(parseFloat(customDeductionAmt) || 0, fullDeduction)
-        : fullDeduction)
-    : 0;
-  const advancePaidNum  = parseFloat(advancePaid) || 0;
-  const balanceDue      = Math.max(0, computedAgreedPrice - calculatedAdvanceDeduction - advancePaidNum);
+  const fullDeduction = useMemo(() => {
+    return selectedSupplier ? Math.min(selectedSupplier.outstandingAdvance, computedAgreedPrice) : 0;
+  }, [selectedSupplier, computedAgreedPrice]);
+
+  const calculatedAdvanceDeduction = useMemo(() => {
+    return applyAdvanceDeduction
+      ? (customDeductionMode
+          ? Math.min(parseFloat(customDeductionAmt) || 0, fullDeduction)
+          : fullDeduction)
+      : 0;
+  }, [applyAdvanceDeduction, customDeductionMode, customDeductionAmt, fullDeduction]);
+
+  const advancePaidNum = useMemo(() => parseFloat(advancePaid) || 0, [advancePaid]);
+
+  const balanceDue = useMemo(() => {
+    return Math.max(0, computedAgreedPrice - calculatedAdvanceDeduction - advancePaidNum);
+  }, [computedAgreedPrice, calculatedAdvanceDeduction, advancePaidNum]);
 
   const handleFormSubmit = async (e: React.FormEvent, print = false) => {
     e.preventDefault();
@@ -350,8 +335,8 @@ export default function PurchasesPage() {
 
       if (type === 'VEHICLE') {
         if (bulkVehicles.length === 0) { setMessage({ type: 'error', text: 'Add at least one vehicle.' }); return; }
-        const results: string[] = [];
-        for (const v of bulkVehicles) {
+        // Send all vehicles in ONE purchase request
+        const vehicles = bulkVehicles.map(v => {
           const cl = v.checklist;
           const vLogistics = perVehicleLogistics && v.logistics ? v.logistics : null;
           const vMethod = vLogistics ? vLogistics.logisticsMethod : logisticsMethod;
@@ -359,47 +344,54 @@ export default function PurchasesPage() {
           const vDriverName = vLogistics
             ? (vLogistics.driverNames.length > 0 ? vLogistics.driverNames.join(', ') + (vLogistics.crewCount ? ` (+${vLogistics.crewCount} crew)` : '') : '')
             : (driverNames.length > 0 ? driverNames.join(', ') + (crewCount ? ` (+${crewCount} crew)` : '') : driverName);
-          const vPrice = parseFloat(v.price) || 0;
-          const body: any = { ...sharedBase, type: 'VEHICLE', agreedPrice: vPrice,
-            logisticsMethod: vMethod,
-            collectionDate: vLogistics ? vLogistics.collectionDate : collectionDate,
-            driverName: vDriverName,
-            vehicleBrand: v.brand, vehicleModel: v.model, registrationNo: v.regNo,
-            otherInfo: v.otherInfo, alloyWheelsCount: v.alloyWheels,
+          return {
+            brand: v.brand, model: v.model, regNo: v.regNo,
+            price: v.price, alloyWheels: v.alloyWheels, otherInfo: v.otherInfo,
             engineIntact:       cl.find(i => i.label === 'Engine')?.checked ?? true,
             gearboxPresent:     cl.find(i => i.label === 'Gearbox')?.checked ?? true,
             catalyticConverter: cl.find(i => i.label === 'Catalytic')?.checked ?? true,
             battery:            cl.find(i => i.label === 'Battery')?.checked ?? true,
             radiator:           cl.find(i => i.label === 'Radiator')?.checked ?? true,
             wiring:             cl.find(i => i.label === 'Wiring')?.checked ?? true,
-          };
-          if (vIsHired) {
-            body.transportCompanyId = vLogistics ? (vLogistics.transportCompanyId ? parseInt(vLogistics.transportCompanyId) : null) : (transportCompanyId ? parseInt(transportCompanyId) : null);
-            body.transportTripFee   = vLogistics ? (parseFloat(vLogistics.transportTripFee) || 0) : (parseFloat(transportTripFee) || 0);
-          }
-          const res = await fetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-          const saved = await res.json();
-          if (!res.ok) throw new Error(`${v.brand} ${v.model}: ${saved.error}`);
-          results.push(saved.id);
-          savedInvoices.push({
-            id: saved.id, date: saved.date ?? new Date().toISOString(),
-            supplierName: selectedSupplier?.name ?? '', supplierContact: selectedSupplier?.contact,
-            pickupLocation, notes, type: 'VEHICLE',
-            vehicleBrand: v.brand, vehicleModel: v.model, registrationNo: v.regNo,
-            otherInfo: v.otherInfo, alloyWheelsCount: v.alloyWheels,
-            checklist: cl,
             logisticsMethod: vMethod,
             collectionDate: vLogistics ? vLogistics.collectionDate : collectionDate,
             driverName: vDriverName,
-            transportCompanyName: vIsHired ? (vLogistics?.transportCompanyId || transportCompanyName) : undefined,
-            transportTripFee: vIsHired ? (vLogistics ? parseFloat(vLogistics.transportTripFee) || 0 : parseFloat(transportTripFee) || 0) : undefined,
-            agreedPrice: vPrice, advancePaid: advancePaidNum,
-            advanceDeduction: calculatedAdvanceDeduction,
-            balanceDue: Math.max(0, vPrice - calculatedAdvanceDeduction - advancePaidNum),
-            paymentStatus, paymentMethod,
-          });
-        }
-        setMessage({ type: 'success', text: `${results.length} vehicle${results.length > 1 ? 's' : ''} recorded: ${results.join(', ')}` });
+            transportCompanyId: vIsHired ? (vLogistics ? vLogistics.transportCompanyId : transportCompanyId) : null,
+            transportCompanyName: vIsHired ? (vLogistics ? vLogistics.transportCompanyId : transportCompanyName) : null,
+            transportTripFee: vIsHired ? (vLogistics ? vLogistics.transportTripFee : transportTripFee) : '0',
+          };
+        });
+        const totalPrice = bulkVehicles.reduce((s, v) => s + (parseFloat(v.price) || 0), 0);
+        const body: any = {
+          ...sharedBase, type: 'VEHICLE',
+          agreedPrice: totalPrice,
+          vehicleBrand: vehicles[0]?.brand, vehicleModel: vehicles[0]?.model,
+          registrationNo: vehicles[0]?.regNo, otherInfo: vehicles[0]?.otherInfo,
+          alloyWheelsCount: vehicles[0]?.alloyWheels,
+          engineIntact: vehicles[0]?.engineIntact, gearboxPresent: vehicles[0]?.gearboxPresent,
+          catalyticConverter: vehicles[0]?.catalyticConverter, battery: vehicles[0]?.battery,
+          radiator: vehicles[0]?.radiator, wiring: vehicles[0]?.wiring,
+          vehicles,
+        };
+        const res = await apiFetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const saved = await res.json();
+        if (!res.ok) throw new Error(saved.error);
+        setMessage({ type: 'success', text: `${vehicles.length} vehicle${vehicles.length > 1 ? 's' : ''} recorded under ${saved.id}` });
+        savedInvoices.push({
+          id: saved.id, date: saved.date ?? new Date().toISOString(),
+          supplierName: selectedSupplier?.name ?? 'BALAI POLIS LIMAU MANIS', supplierContact: selectedSupplier?.contact, supplierIce: (selectedSupplier as any)?.iceNumber,
+          pickupLocation, notes: notes || 'Purchased as scrap / used vehicles.', type: 'VEHICLE',
+          items: bulkVehicles.map((v, idx) => ({
+            no: idx + 1,
+            description: `${v.brand} ${v.model}`.trim() || 'Motor Vehicle Salvage',
+            registrationNo: v.regNo || '—',
+            amount: parseFloat(v.price) || 0,
+          })),
+          agreedPrice: totalPrice, advancePaid: advancePaidNum,
+          advanceDeduction: calculatedAdvanceDeduction,
+          balanceDue: Math.max(0, totalPrice - calculatedAdvanceDeduction - advancePaidNum),
+          paymentStatus, paymentMethod,
+        });
         const first = newBulkVehicle();
         setBulkVehicles([first]); setExpandedBulkId(first.id);
       } else {
@@ -414,14 +406,19 @@ export default function PurchasesPage() {
         } else {
           Object.assign(body, { lotName, scrapDescription, grossTonnageEstimate: parseFloat(grossTonnageEstimate) || 0, scrapPhoto: [photoFront, photoSide, photoDetail].filter(Boolean).join(','), lineItems });
         }
-        const res  = await fetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const res  = await apiFetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const saved = await res.json();
         if (!res.ok) throw new Error(saved.error || 'Failed to record purchase');
         setMessage({ type: 'success', text: `Purchase recorded: ${saved.id}` });
         savedInvoices.push({
           id: saved.id, date: saved.date ?? new Date().toISOString(),
-          supplierName: selectedSupplier?.name ?? '', supplierContact: selectedSupplier?.contact,
-          pickupLocation, notes, type,
+          supplierName: selectedSupplier?.name ?? 'BALAI POLIS LIMAU MANIS', supplierContact: selectedSupplier?.contact, supplierIce: (selectedSupplier as any)?.iceNumber,
+          pickupLocation, notes: notes || 'Purchased as scrap / used vehicles.', type,
+          items: type === 'LOOSE_SCRAP'
+            ? [{ no: 1, description: `${looseMaterial} (${looseQty} ${looseUnit} @ B$${looseRate})`, registrationNo: '—', amount: computedAgreedPrice }]
+            : (lineItems.length > 0
+                ? lineItems.map((li, idx) => ({ no: idx + 1, description: `${li.material} (${li.qty} ${li.unit} @ B$${li.rate})`, registrationNo: '—', amount: (parseFloat(li.qty) || 0) * (parseFloat(li.rate) || 0) }))
+                : [{ no: 1, description: lotName || scrapDescription || 'Scrap Material', registrationNo: '—', amount: computedAgreedPrice }]),
           lotName: type === 'LOOSE_SCRAP' ? looseMaterial : lotName,
           scrapDescription: type === 'LOOSE_SCRAP' ? `${looseQty} ${looseUnit} @ B$${looseRate}/${looseUnit}` : scrapDescription,
           grossTonnageEstimate: type === 'LOOSE_SCRAP' ? parseFloat(looseQty) || 0 : parseFloat(grossTonnageEstimate) || 0,
@@ -453,7 +450,7 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!editingSupplier) return;
     try {
-      const res  = await fetch(`/api/suppliers/${editingSupplier.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editSupName, contact: editSupContact, iceNumber: editSupIce || null, outstandingAdvance: parseFloat(editSupAdvance) || 0 }) });
+      const res  = await apiFetch(`/api/suppliers/${editingSupplier.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editSupName, contact: editSupContact, iceNumber: editSupIce || null, outstandingAdvance: parseFloat(editSupAdvance) || 0 }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update supplier');
       setMessage({ type: 'success', text: `Supplier ${editSupName} updated.` });
@@ -463,19 +460,26 @@ export default function PurchasesPage() {
   };
 
   const reprintPurchase = (p: Purchase) => {
-    const checklist = [
-      { label: 'Engine', checked: p.engineIntact ?? true },
-      { label: 'Gearbox', checked: p.gearboxPresent ?? true },
-      { label: 'Catalytic', checked: p.catalyticConverter ?? true },
-      { label: 'Battery', checked: p.battery ?? true },
-      { label: 'Radiator', checked: p.radiator ?? true },
-      { label: 'Wiring', checked: p.wiring ?? true },
-    ];
+    const items = (p as any).purchaseItems && (p as any).purchaseItems.length > 0
+      ? (p as any).purchaseItems.map((pi: any, idx: number) => ({
+          no: idx + 1,
+          description: `${pi.vehicleBrand || ''} ${pi.vehicleModel || ''}`.trim() || 'Motor Vehicle Salvage',
+          registrationNo: pi.registrationNo || '—',
+          amount: pi.agreedPrice || 0,
+        }))
+      : [{
+          no: 1,
+          description: `${p.vehicleBrand || ''} ${p.vehicleModel || ''}`.trim() || (p.lotName || p.scrapDescription || 'Motor Vehicle Salvage'),
+          registrationNo: p.registrationNo || '—',
+          amount: p.agreedPrice,
+        }];
+
     printPurchaseInvoice({
-      id: p.id, date: p.date, supplierName: p.supplier?.name ?? '', supplierContact: p.supplier?.contact,
-      pickupLocation: p.pickupLocation, notes: p.notes, type: p.type,
+      id: p.id, date: p.date, supplierName: p.supplier?.name ?? 'BALAI POLIS LIMAU MANIS', supplierContact: p.supplier?.contact, supplierIce: (p.supplier as any)?.iceNumber,
+      pickupLocation: p.pickupLocation, notes: p.notes || 'Purchased as scrap / used vehicles.', type: p.type,
+      items,
       vehicleBrand: p.vehicleBrand, vehicleModel: p.vehicleModel, registrationNo: p.registrationNo,
-      otherInfo: p.otherInfo, alloyWheelsCount: p.alloyWheelsCount, checklist,
+      otherInfo: p.otherInfo, alloyWheelsCount: p.alloyWheelsCount,
       lotName: p.lotName, scrapDescription: p.scrapDescription, grossTonnageEstimate: p.grossTonnageEstimate,
       logisticsMethod: p.logisticsMethod, collectionDate: p.collectionDate, driverName: p.driverName,
       transportCompanyName: p.transportCompany?.name, transportTripFee: p.transportTripFee,
@@ -487,68 +491,173 @@ export default function PurchasesPage() {
   };
 
   const openEditModal = (p: Purchase) => {
+    // Populate main form state with the purchase data
     setEditingPurchase(p);
-    setEditPickupLocation(p.pickupLocation);
-    setEditNotes(p.notes || '');
-    setEditLogisticsMethod(p.logisticsMethod as LogisticsMethod);
-    setEditCollectionDate(p.collectionDate ? p.collectionDate.split('T')[0] : '');
-    setEditDriverName(p.driverName || '');
-    setEditPaymentStatus(p.paymentStatus as PaymentStatus);
-    setEditPaymentMethod(p.paymentMethod as PaymentMethod);
-    setEditAdvancePaid(p.advancePaid?.toString() || '0');
-    setEditVehicleBrand(p.vehicleBrand || '');
-    setEditVehicleModel(p.vehicleModel || '');
-    setEditRegistrationNo(p.registrationNo || '');
-    setEditOtherInfo(p.otherInfo || '');
-    setEditComponentChecklist([
-      { label: 'Engine',    checked: p.engineIntact ?? true },
-      { label: 'Gearbox',   checked: p.gearboxPresent ?? true },
-      { label: 'Catalytic', checked: p.catalyticConverter ?? true },
-      { label: 'Battery',   checked: p.battery ?? true },
-      { label: 'Radiator',  checked: p.radiator ?? true },
-      { label: 'Wiring',    checked: p.wiring ?? true },
-    ]);
-    setEditAlloyWheelsCount(p.alloyWheelsCount ?? 0);
-    setEditLotName(p.lotName || '');
-    setEditScrapDescription(p.scrapDescription || '');
-    setEditGrossTonnageEstimate(p.grossTonnageEstimate?.toString() || '');
-    setEditTransportCompanyId(p.transportCompany?.id?.toString() || '');
-    setEditTransportTripFee(p.transportTripFee?.toString() || '');
+    setType(p.type as 'VEHICLE' | 'LOOSE_SCRAP' | 'MIXED_SCRAP');
+    setSupplierId(p.supplierId.toString());
+    setSelectedSupplier(p.supplier ?? null);
+    setPickupLocation(p.pickupLocation);
+    setNotes(p.notes || '');
+    setLogisticsMethod(p.logisticsMethod as LogisticsMethod);
+    setCollectionDate(p.collectionDate ? p.collectionDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+    setDriverName(p.driverName || '');
+    setDriverNames(p.driverName ? [p.driverName] : []);
+    setPaymentStatus(p.paymentStatus as PaymentStatus);
+    setPaymentMethod(p.paymentMethod as PaymentMethod);
+    setAdvancePaid(p.advancePaid?.toString() || '0');
+    setTransportCompanyId(p.transportCompany?.id?.toString() || '');
+    setTransportCompanyName(p.transportCompany?.name || '');
+    setTransportTripFee(p.transportTripFee?.toString() || '80.00');
+    setPreviewPurchaseId(p.id);
+    if (p.type === 'VEHICLE') {
+      // Load purchaseItems as bulkVehicles if available, else single vehicle
+      const items = (p as any).purchaseItems;
+      if (Array.isArray(items) && items.length > 0) {
+        const loaded = items.map((pi: any) => ({
+          id: pi.id || Date.now().toString(),
+          brand: pi.vehicleBrand || '',
+          model: pi.vehicleModel || '',
+          regNo: pi.registrationNo || '',
+          price: pi.agreedPrice?.toString() || '',
+          alloyWheels: pi.alloyWheelsCount || 0,
+          otherInfo: pi.otherInfo || '',
+          checklist: [
+            { label: 'Engine',    checked: pi.engineIntact    ?? true },
+            { label: 'Gearbox',   checked: pi.gearboxPresent  ?? true },
+            { label: 'Catalytic', checked: pi.catalyticConverter ?? true },
+            { label: 'Battery',   checked: pi.battery         ?? true },
+            { label: 'Radiator',  checked: pi.radiator        ?? true },
+            { label: 'Wiring',    checked: pi.wiring          ?? true },
+          ],
+        }));
+        setBulkVehicles(loaded);
+        setExpandedBulkId(loaded[0]?.id ?? null);
+      } else {
+        const v = newBulkVehicle();
+        const updated = { ...v,
+          brand: p.vehicleBrand || '', model: p.vehicleModel || '',
+          regNo: p.registrationNo || '', price: p.agreedPrice?.toString() || '',
+          alloyWheels: p.alloyWheelsCount || 0, otherInfo: p.otherInfo || '',
+          checklist: [
+            { label: 'Engine',    checked: p.engineIntact    ?? true },
+            { label: 'Gearbox',   checked: p.gearboxPresent  ?? true },
+            { label: 'Catalytic', checked: p.catalyticConverter ?? true },
+            { label: 'Battery',   checked: p.battery         ?? true },
+            { label: 'Radiator',  checked: p.radiator        ?? true },
+            { label: 'Wiring',    checked: p.wiring          ?? true },
+          ],
+        };
+        setBulkVehicles([updated]);
+        setExpandedBulkId(updated.id);
+      }
+    } else if (p.type === 'LOOSE_SCRAP') {
+      setLooseMaterial(p.lotName || '');
+      setLooseQty(p.grossTonnageEstimate?.toString() || '');
+      setLooseRate('');
+    } else {
+      setLotName(p.lotName || '');
+      setScrapDescription(p.scrapDescription || '');
+      setGrossTonnageEstimate(p.grossTonnageEstimate?.toString() || '');
+    }
+    // Scroll to top of form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleEditSubmit = async (e: React.FormEvent) => {
+  const cancelEdit = () => {
+    setEditingPurchase(null);
+    setPickupLocation(''); setNotes(''); setSupplierId(''); setSelectedSupplier(null);
+    setAdvancePaid('0'); setDriverName(''); setDriverNames([]);
+    const first = newBulkVehicle(); setBulkVehicles([first]); setExpandedBulkId(first.id);
+    refreshNextId();
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent, shouldPrint = false) => {
     e.preventDefault();
     if (!editingPurchase) return;
     try {
-      const isHired = editLogisticsMethod === 'HIRED_TOW_TRUCK' || editLogisticsMethod === 'HIRED_LORRY';
+      const isHired = logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY';
+      const resolvedDriverName = driverNames.length > 0 ? driverNames.join(', ') + (crewCount ? ` (+${crewCount} crew)` : '') : driverName;
       const body: any = {
-        pickupLocation: editPickupLocation, notes: editNotes, logisticsMethod: editLogisticsMethod,
-        collectionDate: editCollectionDate, driverName: editDriverName,
-        paymentStatus: editPaymentStatus, paymentMethod: editPaymentMethod,
-        advancePaid: parseFloat(editAdvancePaid) || 0,
+        pickupLocation, notes, logisticsMethod,
+        collectionDate, driverName: resolvedDriverName,
+        paymentStatus, paymentMethod,
+        advancePaid: parseFloat(advancePaid) || 0,
       };
       if (editingPurchase.type === 'VEHICLE') {
-        const cl = editComponentChecklist;
-        Object.assign(body, { vehicleBrand: editVehicleBrand, vehicleModel: editVehicleModel, registrationNo: editRegistrationNo, otherInfo: editOtherInfo, alloyWheelsCount: editAlloyWheelsCount,
-          engineIntact:       cl.find(i => i.label === 'Engine')?.checked ?? true,
-          gearboxPresent:     cl.find(i => i.label === 'Gearbox')?.checked ?? true,
-          catalyticConverter: cl.find(i => i.label === 'Catalytic')?.checked ?? true,
-          battery:            cl.find(i => i.label === 'Battery')?.checked ?? true,
-          radiator:           cl.find(i => i.label === 'Radiator')?.checked ?? true,
-          wiring:             cl.find(i => i.label === 'Wiring')?.checked ?? true,
+        // Send all bulk vehicles so purchaseItems get updated
+        body.vehicles = bulkVehicles.map((v, idx) => {
+          const cl = v.checklist ?? [];
+          return {
+            itemIndex: idx + 1,
+            vehicleBrand: v.brand, vehicleModel: v.model, registrationNo: v.regNo,
+            otherInfo: v.otherInfo, alloyWheelsCount: v.alloyWheels,
+            agreedPrice: parseFloat(v.price) || 0,
+            engineIntact:       cl.find(i => i.label === 'Engine')?.checked ?? true,
+            gearboxPresent:     cl.find(i => i.label === 'Gearbox')?.checked ?? true,
+            catalyticConverter: cl.find(i => i.label === 'Catalytic')?.checked ?? true,
+            battery:            cl.find(i => i.label === 'Battery')?.checked ?? true,
+            radiator:           cl.find(i => i.label === 'Radiator')?.checked ?? true,
+            wiring:             cl.find(i => i.label === 'Wiring')?.checked ?? true,
+          };
+        });
+        // First vehicle fields on parent record
+        const v0 = bulkVehicles[0];
+        const cl0 = v0?.checklist ?? [];
+        Object.assign(body, {
+          vehicleBrand: v0?.brand, vehicleModel: v0?.model, registrationNo: v0?.regNo,
+          otherInfo: v0?.otherInfo, alloyWheelsCount: v0?.alloyWheels,
+          engineIntact:       cl0.find(i => i.label === 'Engine')?.checked ?? true,
+          gearboxPresent:     cl0.find(i => i.label === 'Gearbox')?.checked ?? true,
+          catalyticConverter: cl0.find(i => i.label === 'Catalytic')?.checked ?? true,
+          battery:            cl0.find(i => i.label === 'Battery')?.checked ?? true,
+          radiator:           cl0.find(i => i.label === 'Radiator')?.checked ?? true,
+          wiring:             cl0.find(i => i.label === 'Wiring')?.checked ?? true,
         });
       } else {
-        Object.assign(body, { lotName: editLotName, scrapDescription: editScrapDescription, grossTonnageEstimate: parseFloat(editGrossTonnageEstimate) || 0 });
+        Object.assign(body, { lotName, scrapDescription, grossTonnageEstimate: parseFloat(grossTonnageEstimate) || 0 });
       }
       if (isHired) {
-        body.transportCompanyId = editTransportCompanyId ? parseInt(editTransportCompanyId) : null;
-        body.transportTripFee   = parseFloat(editTransportTripFee) || 0;
+        body.transportCompanyId = transportCompanyId ? parseInt(transportCompanyId) : null;
+        body.transportTripFee   = parseFloat(transportTripFee) || 0;
       }
-      const res  = await fetch(`/api/purchases/${editingPurchase.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res  = await apiFetch(`/api/purchases/${editingPurchase.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update purchase');
       setMessage({ type: 'success', text: `Purchase ${editingPurchase.id} updated.` });
-      setEditingPurchase(null);
+      if (shouldPrint) {
+        // Build invoice from current form state (fresh data)
+        const totalAgreed = editingPurchase.type === 'VEHICLE'
+          ? bulkVehicles.reduce((s, v) => s + (parseFloat(v.price) || 0), 0)
+          : parseFloat(grossTonnageEstimate) || editingPurchase.agreedPrice;
+        const adv = parseFloat(advancePaid) || 0;
+        const invoiceItems = editingPurchase.type === 'VEHICLE'
+          ? bulkVehicles.map((v, idx) => ({
+              no: idx + 1,
+              description: `${v.brand} ${v.model}`.trim() || 'Motor Vehicle Salvage',
+              registrationNo: v.regNo || '—',
+              amount: parseFloat(v.price) || 0,
+            }))
+          : [{ no: 1, description: lotName || scrapDescription || 'Scrap Material', registrationNo: '—', amount: totalAgreed }];
+        printPurchaseInvoice({
+          id: editingPurchase.id,
+          date: editingPurchase.date,
+          supplierName: selectedSupplier?.name ?? editingPurchase.supplier?.name ?? '—',
+          supplierContact: selectedSupplier?.contact ?? editingPurchase.supplier?.contact,
+          supplierIce: (selectedSupplier as any)?.iceNumber ?? (editingPurchase.supplier as any)?.iceNumber,
+          pickupLocation,
+          notes: notes || 'Purchased as scrap / used vehicles.',
+          type: editingPurchase.type,
+          items: invoiceItems,
+          logisticsMethod, collectionDate, driverName: resolvedDriverName,
+          transportCompanyName: transportCompanyName || data.transportCompany?.name,
+          transportTripFee: parseFloat(transportTripFee) || 0,
+          agreedPrice: totalAgreed,
+          advancePaid: adv,
+          balanceDue: Math.max(0, totalAgreed - adv),
+          paymentStatus, paymentMethod,
+        });
+      }
+      cancelEdit();
       fetchData();
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
   };
@@ -672,9 +781,22 @@ export default function PurchasesPage() {
 
       <div className="dashboard-layout-main">
         {/* ══════════════ LEFT — Main Form ══════════════ */}
-        <form onSubmit={(e) => handleFormSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+        <form onSubmit={(e) => editingPurchase ? handleEditSubmit(e, false) : handleFormSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
 
-          {/* ── Section 1: Purchase Header Info ──────────────────────────── */}
+          {/* ── Edit mode banner ─────────────────────────────────────────── */}
+          {editingPurchase && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', marginBottom: '16px', background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Pencil size={15} style={{ color: '#c9a84c' }} />
+                <span style={{ fontWeight: 700, color: '#e8d5a3', fontSize: '0.9rem' }}>Editing Purchase</span>
+                <code style={{ color: '#c9a84c', fontSize: '0.85rem', background: 'rgba(201,168,76,0.12)', padding: '2px 8px', borderRadius: '6px' }}>{editingPurchase.id}</code>
+                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>— changes will update the existing record</span>
+              </div>
+              <button type="button" onClick={cancelEdit} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '5px 12px', cursor: 'pointer', color: '#94a3b8', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <X size={13} /> Cancel Edit
+              </button>
+            </div>
+          )}
           <div className="glass-panel" style={{ marginBottom: '16px' }}>
             <h2 style={{ fontSize: '1.1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileText size={18} style={{ color: '#c9a84c' }} /> Salvage Procurement Card
@@ -815,7 +937,7 @@ export default function PurchasesPage() {
                           <span style={{ color: '#c9a84c', fontWeight: 700, fontSize: '0.85rem', minWidth: '24px' }}>#{idx + 1}</span>
                           <span style={{ flex: 1, color: '#e2e8f0', fontSize: '0.9rem' }}>
                             {[v.brand, v.model].filter(Boolean).join(' ') || 'New Vehicle'}
-                            {v.regNo && <span style={{ color: '#64748b', marginLeft: '8px', fontSize: '0.8rem' }}>{v.regNo}</span>}
+                            {v.regNo && <span style={{ color: '#64748b', marginLeft: '8px', fontSize: '0.8rem' }}>({v.regNo})</span>}
                           </span>
                           {v.price && <span style={{ color: '#10b981', fontWeight: 600, fontSize: '0.85rem' }}>B$ {parseFloat(v.price).toFixed(2)}</span>}
                           {bulkVehicles.length > 1 && (
@@ -824,7 +946,7 @@ export default function PurchasesPage() {
                         </div>
                         {expandedBulkId === v.id && (
                           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
                               <div className="form-group">
                                 <label>Vehicle Brand</label>
                                 <input type="text" className="form-input" placeholder="e.g. Toyota" value={v.brand} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, brand: e.target.value } : x))} />
@@ -832,6 +954,10 @@ export default function PurchasesPage() {
                               <div className="form-group">
                                 <label>Vehicle Model</label>
                                 <input type="text" className="form-input" placeholder="e.g. Hilux" value={v.model} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, model: e.target.value } : x))} required />
+                              </div>
+                              <div className="form-group">
+                                <label>Vehicle Reg. No.</label>
+                                <input type="text" className="form-input" placeholder="e.g. BA 2341 A" value={v.regNo} onChange={e => setBulkVehicles(bulkVehicles.map(x => x.id === v.id ? { ...x, regNo: e.target.value } : x))} />
                               </div>
                               <div className="form-group">
                                 <label>Price (BND)</label>
@@ -1052,7 +1178,7 @@ export default function PurchasesPage() {
           {/* ── Section 4: Logistics & Collection ───────────────────────── */}
           <div className="glass-panel" style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '1rem', color: '#c9a84c', margin: 0 }}>🚛 Dispatch &amp; Transport</h3>
+              <h3 style={{ fontSize: '1rem', color: '#c9a84c', margin: 0 }}>🚛 Dispatch & Transport</h3>
               {type === 'VEHICLE' && (
                 <button type="button" onClick={() => setPerVehicleLogistics(!perVehicleLogistics)}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 14px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, border: perVehicleLogistics ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.12)', background: perVehicleLogistics ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.03)', color: perVehicleLogistics ? '#e8d5a3' : '#64748b', transition: 'all 0.15s ease' }}>
@@ -1151,7 +1277,7 @@ export default function PurchasesPage() {
 
           {/* ── Section 5: Payment & Financial Settlement ───────────────── */}
           <div className="glass-panel" style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>💰 Invoice &amp; Payment Settlement</h3>
+            <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#c9a84c' }}>💰 Invoice & Payment Settlement</h3>
             <div className="form-grid">
               <div className="col-4 form-group">
                 <label>Agreed Price (BND)</label>
@@ -1219,14 +1345,14 @@ export default function PurchasesPage() {
                 {calculatedAdvanceDeduction > 0 && <span style={{ fontSize: '0.85rem', color: '#f59e0b', marginLeft: '10px' }}>(Deducted B${calculatedAdvanceDeduction.toFixed(2)})</span>}
               </p>
             </div>
-            <button type="button" className="btn-outline" onClick={() => { setPickupLocation(''); setNotes(''); setSupplierId(''); setSelectedSupplier(null); setAgreedPrice(''); setAdvancePaid('0'); setVehicleBrand(''); setVehicleModel(''); setRegistrationNo(''); setOtherInfo(''); setPhotoFront(''); setPhotoSide(''); setPhotoDetail(''); }}>
-              <X size={16} /> Cancel
+            <button type="button" className="btn-outline" onClick={() => editingPurchase ? cancelEdit() : (() => { setPickupLocation(''); setNotes(''); setSupplierId(''); setSelectedSupplier(null); setAgreedPrice(''); setAdvancePaid('0'); setVehicleBrand(''); setVehicleModel(''); setRegistrationNo(''); setOtherInfo(''); setPhotoFront(''); setPhotoSide(''); setPhotoDetail(''); })()}>
+              <X size={16} /> {editingPurchase ? 'Cancel Edit' : 'Cancel'}
             </button>
-            <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => handleFormSubmit(e as any, true)}>
-              <Printer size={16} /> Save &amp; Print
+            <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => editingPurchase ? handleEditSubmit(e as any, true) : handleFormSubmit(e as any, true)}>
+              <Printer size={16} /> {editingPurchase ? 'Update & Print' : 'Save & Print'}
             </button>
             <button type="submit" className="btn-primary">
-              <Save size={18} /> Save Record
+              <Save size={18} /> {editingPurchase ? 'Update Record' : 'Save Record'}
             </button>
           </div>
         </form>
@@ -1326,19 +1452,26 @@ export default function PurchasesPage() {
                 <p style={{ color: '#64748b', fontSize: '0.9rem' }}>No purchase records yet.</p>
               ) : (
                 purchases.slice(0, 8).map(p => (
-                  <div key={p.id} style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <code style={{ fontSize: '0.8rem', color: '#c9a84c', fontWeight: 700 }}>{p.id}</code>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className={`badge ${p.paymentStatus === 'PAID' ? 'badge-success' : p.paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '0.7rem' }}>{p.paymentStatus}</span>
-                        <button type="button" onClick={() => reprintPurchase(p)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><Printer size={11} /></button>
-                        <button type="button" onClick={() => openEditModal(p)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><Pencil size={11} /></button>
-                      </div>
+                  <div key={p.id} style={{ borderRadius: '10px', border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+                    {/* Top row: ID + status badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <code style={{ fontSize: '0.78rem', color: '#c9a84c', fontWeight: 700, letterSpacing: '0.04em' }}>{p.id}</code>
+                      <span className={`badge ${p.paymentStatus === 'PAID' ? 'badge-success' : p.paymentStatus === 'PARTIAL' ? 'badge-warning' : 'badge-danger'}`} style={{ fontSize: '0.68rem' }}>{p.paymentStatus}</span>
                     </div>
-                    <p style={{ fontWeight: 650, color: '#fff', fontSize: '0.85rem', marginBottom: '4px' }}>{p.type === 'VEHICLE' ? [p.vehicleBrand, p.vehicleModel].filter(Boolean).join(' ') || p.vehicleModel : p.lotName}</p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', color: '#64748b' }}>
-                      <span>{p.supplier?.name}</span>
-                      <strong style={{ color: '#e2e8f0' }}>B$ {p.agreedPrice.toFixed(2)}</strong>
+                    {/* Middle: item name + supplier */}
+                    <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <p style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.85rem', marginBottom: '2px' }}>
+                        {p.type === 'VEHICLE' ? [p.vehicleBrand, p.vehicleModel].filter(Boolean).join(' ') || '—' : p.lotName || '—'}
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.supplier?.name}</p>
+                    </div>
+                    {/* Bottom: price + action buttons */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: 'rgba(255,255,255,0.01)' }}>
+                      <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>B$ {p.agreedPrice.toFixed(2)}</strong>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button type="button" onClick={() => reprintPurchase(p)} title="Print Invoice" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}><Printer size={11} /> Print</button>
+                        <button type="button" onClick={() => openEditModal(p)} title="Edit" style={{ background: 'transparent', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}><Pencil size={11} /> Edit</button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -1347,145 +1480,6 @@ export default function PurchasesPage() {
           </div>
         </div>
       </div>
-
-      {/* ══════════════ EDIT PURCHASE MODAL ══════════════ */}
-      {editingPurchase && (
-        <div className="overlay" onClick={() => setEditingPurchase(null)}>
-          <div className="modal-content" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
-            <div className="flex-between" style={{ marginBottom: '20px', position: 'sticky', top: 0, background: '#0e0c09', zIndex: 1, paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <h2 className="modal-title" style={{ margin: 0 }}>
-                Edit Purchase — <code style={{ color: '#c9a84c' }}>{editingPurchase.id}</code>
-              </h2>
-              <button type="button" style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }} onClick={() => setEditingPurchase(null)}><X size={20} /></button>
-            </div>
-            <form onSubmit={handleEditSubmit}>
-              <div className="form-grid">
-                <div className="col-6 form-group">
-                  <label>Pickup Location</label>
-                  <input type="text" className="form-input" value={editPickupLocation} onChange={(e) => setEditPickupLocation(e.target.value)} required />
-                </div>
-                <div className="col-6 form-group">
-                  <label>Notes / Reference</label>
-                  <input type="text" className="form-input" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
-                </div>
-                <div className="col-6 form-group">
-                  <label>Collection Date</label>
-                  <input type="date" className="form-input" value={editCollectionDate} onChange={(e) => setEditCollectionDate(e.target.value)} />
-                </div>
-                <div className="col-6 form-group">
-                  <label>Driver / Contact</label>
-                  <input type="text" className="form-input" value={editDriverName} onChange={(e) => setEditDriverName(e.target.value)} />
-                </div>
-
-                {/* Collection method cards — edit modal */}
-                <div className="col-12 form-group">
-                  <label>Collection Method</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
-                    {LOGISTICS_OPTIONS.map(opt => (
-                      <button key={opt.value} type="button" onClick={() => setEditLogisticsMethod(opt.value)}
-                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', padding: '10px 6px', borderRadius: '10px', cursor: 'pointer', border: editLogisticsMethod === opt.value ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,0.08)', background: editLogisticsMethod === opt.value ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.02)', color: editLogisticsMethod === opt.value ? '#e8d5a3' : '#64748b', transition: 'all 0.15s ease', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center' }}>
-                        <span style={{ color: editLogisticsMethod === opt.value ? '#c9a84c' : '#64748b' }}>{opt.icon}</span>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {(editLogisticsMethod === 'HIRED_TOW_TRUCK' || editLogisticsMethod === 'HIRED_LORRY') && (
-                  <>
-                    <div className="col-6 form-group">
-                      <label>Towing Company</label>
-                      <input list="transporter-list" className="form-input" placeholder="Type company name..." value={editTransportCompanyId} onChange={e => {
-                        setEditTransportCompanyId(e.target.value);
-                      }} />
-                    </div>
-                    <div className="col-6 form-group">
-                      <label>Trip Fee (BND)</label>
-                      <input type="number" className="form-input" value={editTransportTripFee} onChange={(e) => setEditTransportTripFee(e.target.value)} />
-                    </div>
-                  </>
-                )}
-
-                <div className="col-6 form-group">
-                  <label>Advance Paid (BND)</label>
-                  <input type="number" className="form-input" value={editAdvancePaid} onChange={(e) => setEditAdvancePaid(e.target.value)} />
-                </div>
-
-                {/* Payment status inline buttons */}
-                <div className="col-6 form-group">
-                  <label>Payment Status</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {([
-                      { value: 'PAID',    label: 'Paid',    color: '#10b981', bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.35)' },
-                      { value: 'PARTIAL', label: 'Partial', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.35)' },
-                      { value: 'UNPAID',  label: 'Pending', color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)' },
-                    ] as const).map(opt => (
-                      <button key={opt.value} type="button" onClick={() => setEditPaymentStatus(opt.value)}
-                        style={{ flex: 1, padding: '9px 6px', borderRadius: '9px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', border: editPaymentStatus === opt.value ? `2px solid ${opt.border}` : '1px solid rgba(255,255,255,0.08)', background: editPaymentStatus === opt.value ? opt.bg : 'rgba(255,255,255,0.02)', color: editPaymentStatus === opt.value ? opt.color : '#64748b', transition: 'all 0.15s ease' }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="col-6 form-group">
-                  <label>Payment Method</label>
-                  <CustomSelect value={editPaymentMethod} onChange={(v) => setEditPaymentMethod(v as PaymentMethod)} options={[{ value: 'CASH', label: 'Cash' }, { value: 'BANK_TRANSFER', label: 'Bank Transfer' }]} required />
-                </div>
-
-                {editingPurchase.type === 'VEHICLE' && (
-                  <>
-                    <div className="col-4 form-group">
-                      <label>Vehicle Brand</label>
-                      <input type="text" className="form-input" value={editVehicleBrand} onChange={(e) => setEditVehicleBrand(e.target.value)} />
-                    </div>
-                    <div className="col-4 form-group">
-                      <label>Vehicle Model</label>
-                      <input type="text" className="form-input" value={editVehicleModel} onChange={(e) => setEditVehicleModel(e.target.value)} />
-                    </div>
-                    <div className="col-12 form-group">
-                      <label>Component Checklist</label>
-                      <Checklist items={editComponentChecklist} onChange={setEditComponentChecklist} />
-                    </div>
-
-                    <div className="col-4 form-group">
-                      <label>Alloy Wheels Count</label>
-                      <input type="number" className="form-input" min={0} max={8} value={editAlloyWheelsCount} onChange={e => setEditAlloyWheelsCount(parseInt(e.target.value) || 0)} />
-                    </div>
-
-                    <div className="col-12 form-group">
-                      <label>Other Info</label>
-                      <textarea className="form-textarea" rows={2} value={editOtherInfo} onChange={(e) => setEditOtherInfo(e.target.value)} />
-                    </div>
-                  </>
-                )}
-
-                {(editingPurchase.type === 'MIXED_SCRAP' || editingPurchase.type === 'LOOSE_SCRAP') && (
-                  <>
-                    <div className="col-6 form-group">
-                      <label>Lot Name</label>
-                      <input type="text" className="form-input" value={editLotName} onChange={(e) => setEditLotName(e.target.value)} />
-                    </div>
-                    <div className="col-6 form-group">
-                      <label>Gross Tonnage (KG)</label>
-                      <input type="number" className="form-input" value={editGrossTonnageEstimate} onChange={(e) => setEditGrossTonnageEstimate(e.target.value)} />
-                    </div>
-                    <div className="col-12 form-group">
-                      <label>Scrap Description</label>
-                      <textarea className="form-textarea" rows={2} value={editScrapDescription} onChange={(e) => setEditScrapDescription(e.target.value)} />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
-                <button type="button" className="btn-outline" onClick={() => setEditingPurchase(null)}>Cancel</button>
-                <button type="submit" className="btn-primary"><Save size={16} /> Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ══════════════ EDIT SUPPLIER MODAL ══════════════ */}
       {editingSupplier && (

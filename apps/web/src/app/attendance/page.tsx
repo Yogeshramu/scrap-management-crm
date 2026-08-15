@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Save, X, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SkeletonTableRows } from '../../components/Skeleton';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface AttendanceRecord {
   date: string;
@@ -48,7 +49,7 @@ export default function AttendancePage() {
   useEffect(() => { fetchAttendance(); }, [month, year]);
 
   const fetchAttendance = async () => {
-    const res = await fetch(`/api/attendance?month=${month}&year=${year}`);
+    const res = await apiFetch(`/api/attendance?month=${month}&year=${year}`);
     const data = await res.json();
     setEmployees(Array.isArray(data) ? data : []);
     setChanges({});
@@ -83,7 +84,7 @@ export default function AttendancePage() {
         };
       });
       if (records.length === 0) return;
-      const res = await fetch('/api/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ records }) });
+      const res = await apiFetch('/api/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ records }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMessage({ type: 'success', text: `Saved ${data.saved} attendance records.` });

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Banknote, Save, X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface Employee {
   id: number;
@@ -47,12 +48,12 @@ export default function SalaryPage() {
   useEffect(() => { fetchRecords(); }, [month, year]);
 
   const fetchEmployees = async () => {
-    const res = await fetch('/api/employees');
+    const res = await apiFetch('/api/employees');
     setEmployees(await res.json());
   };
 
   const fetchRecords = async () => {
-    const res = await fetch(`/api/salary?month=${month}&year=${year}`);
+    const res = await apiFetch(`/api/salary?month=${month}&year=${year}`);
     const data = await res.json();
     setRecords(Array.isArray(data) ? data : []);
     setLoading(false);
@@ -61,7 +62,7 @@ export default function SalaryPage() {
   const handleGenerate = async (ev: React.FormEvent) => {
     ev.preventDefault();
     try {
-      const res = await fetch('/api/salary', {
+      const res = await apiFetch('/api/salary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId: selectedEmp, month, year, ...form }),
@@ -78,7 +79,7 @@ export default function SalaryPage() {
 
   const handleMarkPaid = async (id: number) => {
     try {
-      const res = await fetch('/api/salary', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'PAID' }) });
+      const res = await apiFetch('/api/salary', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'PAID' }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMessage({ type: 'success', text: 'Salary marked as paid and logged to cashbook.' });

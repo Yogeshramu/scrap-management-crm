@@ -1,12 +1,21 @@
+export interface PrintPurchaseItem {
+  no?: number;
+  description: string;
+  registrationNo?: string;
+  amount: number;
+}
+
 export interface PrintPurchaseData {
   id: string;
   date: string;
   supplierName: string;
   supplierContact?: string;
-  pickupLocation: string;
+  supplierIce?: string;
+  pickupLocation?: string;
   notes?: string;
-  type: string;
-  // Vehicle
+  type?: string;
+  items?: PrintPurchaseItem[];
+  // Vehicle fields
   vehicleBrand?: string;
   vehicleModel?: string;
   registrationNo?: string;
@@ -19,230 +28,310 @@ export interface PrintPurchaseData {
   grossTonnageEstimate?: number;
   lineItems?: { material: string; qty: string; unit: string; rate: string }[];
   // Logistics
-  logisticsMethod: string;
+  logisticsMethod?: string;
   collectionDate?: string;
   driverName?: string;
   transportCompanyName?: string;
   transportTripFee?: number;
   // Payment
   agreedPrice: number;
-  advancePaid: number;
-  advanceDeduction: number;
-  balanceDue: number;
+  advancePaid?: number;
+  advanceDeduction?: number;
+  balanceDue?: number;
   paymentStatus: string;
   paymentMethod: string;
 }
 
-const LOGISTICS_LABEL: Record<string, string> = {
-  OUR_TOW_TRUCK: 'Our Tow Truck',
-  OUR_LORRY: 'Our Lorry',
-  HIRED_TOW_TRUCK: 'Hired Tow Truck',
-  HIRED_LORRY: 'Hired Lorry',
-  SUPPLIER_DELIVERED: 'Supplier Drop-off',
-};
-
 export function printPurchaseInvoice(data: PrintPurchaseData) {
-  const isHired = data.logisticsMethod === 'HIRED_TOW_TRUCK' || data.logisticsMethod === 'HIRED_LORRY';
-  const statusColor = data.paymentStatus === 'PAID' ? '#16a34a' : data.paymentStatus === 'PARTIAL' ? '#d97706' : '#dc2626';
-  const statusBg   = data.paymentStatus === 'PAID' ? '#dcfce7' : data.paymentStatus === 'PARTIAL' ? '#fef3c7' : '#fee2e2';
+  const issueDateStr = new Date(data.date || Date.now()).toLocaleDateString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  }).replace(/\//g, ' / ');
 
-  const checklistHtml = data.checklist && data.type === 'VEHICLE'
-    ? `<div class="section">
-        <div class="section-title">Component Checklist</div>
-        <div class="checklist-grid">
-          ${data.checklist.map(i => `
-            <div class="check-item ${i.checked ? 'present' : 'missing'}">
-              <span class="check-icon">${i.checked ? '✓' : '✗'}</span>
-              ${i.label}
-            </div>`).join('')}
-          ${data.alloyWheelsCount !== undefined ? `
-            <div class="check-item present">
-              <span class="check-icon">✓</span>
-              Alloy Wheels ×${data.alloyWheelsCount}
-            </div>` : ''}
-        </div>
-      </div>`
-    : '';
+  const COMPANY_NAME    = 'NUR & AFIQ ENTERPRISE';
+  const COMPANY_ADDRESS = 'Unit No.12, Grd Flr, Block A Lot No.7099\nKg Junjongan, Negara Brunei Darussalam';
+  const COMPANY_PHONE   = '+673 8620115';
 
-  const lineItemsHtml = data.lineItems && data.lineItems.length > 0
-    ? `<div class="section">
-        <div class="section-title">Materials Breakdown</div>
-        <table class="items-table">
-          <thead><tr><th>Material</th><th>Qty</th><th>Unit</th><th>Rate (B$)</th><th>Amount (B$)</th></tr></thead>
-          <tbody>
-            ${data.lineItems.map(li => {
-              const amt = (parseFloat(li.qty) || 0) * (parseFloat(li.rate) || 0);
-              return `<tr><td>${li.material}</td><td>${li.qty}</td><td>${li.unit}</td><td>${parseFloat(li.rate).toFixed(2)}</td><td><strong>${amt.toFixed(2)}</strong></td></tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>`
-    : '';
+  const sellerName    = data.supplierName || '—';
+  const sellerContact = data.supplierContact || '—';
+  const sellerIce = data.supplierIce || null;
+  const sellerAddress = data.pickupLocation || '—';
+
+  const isPaid    = data.paymentStatus === 'PAID';
+  const isPartial = data.paymentStatus === 'PARTIAL';
+  const statusLabel = isPaid ? 'PAID IN FULL' : isPartial ? 'PARTIAL PAYMENT' : 'UNPAID';
+  const statusColor = isPaid ? '#16a34a' : isPartial ? '#d97706' : '#dc2626';
+  const statusBg    = isPaid ? '#dcfce7'  : isPartial ? '#fef3c7'  : '#fee2e2';
+  const methodDisplay = data.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer' : 'Cash';
+
+  // ── Build table rows ──────────────────────────────────────────────────────
+  let rows = '';
+  let subtotal = 0;
+
+  const addRow = (sl: number, desc: string, price: number, qty: number | string, total: number) => {
+    subtotal += total;
+    rows += `
+      <tr>
+        <td style="text-align:center;width:48px;color:#374151;font-weight:600;">${sl}</td>
+        <td style="color:#111827;font-weight:500;">${desc}</td>
+        <td style="text-align:right;color:#111827;">B$${price.toFixed(2)}</td>
+        <td style="text-align:center;color:#374151;">${qty}</td>
+        <td style="text-align:right;font-weight:700;color:#111827;">B$${total.toFixed(2)}</td>
+      </tr>`;
+  };
+
+  if (Array.isArray(data.items) && data.items.length > 0) {
+    data.items.forEach((item, i) => {
+      addRow(item.no ?? i + 1, item.description + (item.registrationNo ? ` <span style="font-size:11px;color:#6b7280;">[${item.registrationNo}]</span>` : ''), item.amount, 1, item.amount);
+    });
+  } else if (data.lineItems && data.lineItems.length > 0) {
+    data.lineItems.forEach((li, i) => {
+      const qty   = parseFloat(li.qty) || 0;
+      const rate  = parseFloat(li.rate) || 0;
+      const total = qty * rate;
+      addRow(i + 1, `${li.material} <span style="font-size:11px;color:#6b7280;">(${li.unit})</span>`, rate, qty, total);
+    });
+  } else {
+    const desc = data.type === 'VEHICLE'
+      ? `${data.vehicleBrand || ''} ${data.vehicleModel || ''}`.trim() || 'Motor Vehicle'
+      : (data.lotName || data.scrapDescription || 'Scrap Material');
+    const regSuffix = data.registrationNo ? ` <span style="font-size:11px;color:#6b7280;">[${data.registrationNo}]</span>` : '';
+    addRow(1, desc + regSuffix, data.agreedPrice, 1, data.agreedPrice);
+  }
+
+  const displayTotal   = data.agreedPrice || subtotal;
+  const advancePaid    = data.advancePaid    || 0;
+  const advanceDeduct  = data.advanceDeduction || 0;
+  const balanceDue     = data.balanceDue ?? Math.max(0, displayTotal - advancePaid - advanceDeduct);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Purchase Invoice — ${data.id}</title>
+<meta charset="UTF-8"/>
+<title>Invoice — ${data.id}</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; padding: 32px; }
-  .invoice-wrap { max-width: 780px; margin: 0 auto; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:#fff;color:#111827;font-size:13px;line-height:1.5;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .page{max-width:794px;margin:0 auto;padding:0;}
 
-  /* Header */
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #1a1a1a; }
-  .company-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-  .company-sub { font-size: 11px; color: #666; margin-top: 3px; }
-  .invoice-meta { text-align: right; }
-  .invoice-id { font-size: 20px; font-weight: 800; color: #92400e; letter-spacing: 0.5px; }
-  .invoice-date { font-size: 11px; color: #666; margin-top: 4px; }
-  .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusColor}40; }
+  /* ── Top yellow bar ── */
+  .bar-top{height:10px;background:#f5c518;width:100%;}
 
-  /* Two-col info */
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-  .info-box { background: #f8f7f4; border: 1px solid #e5e0d5; border-radius: 8px; padding: 14px 16px; }
-  .info-box-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #92400e; margin-bottom: 8px; }
-  .info-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
-  .info-label { color: #666; }
-  .info-value { font-weight: 600; color: #1a1a1a; text-align: right; max-width: 55%; }
+  /* ── Inner content ── */
+  .inner{padding:32px 40px 0 40px;}
 
-  /* Sections */
-  .section { margin-bottom: 18px; }
-  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #92400e; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e0d5; }
+  /* ── Logo row ── */
+  .logo-row{display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+  .logo-diamond{
+    width:40px;height:40px;background:#1e293b;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    color:#f5c518;font-weight:800;font-size:18px;flex-shrink:0;
+  }
+  .logo-text-main{font-size:17px;font-weight:800;color:#1e293b;line-height:1.1;}
+  .logo-text-sub{font-size:9px;font-weight:600;color:#6b7280;letter-spacing:1.5px;text-transform:uppercase;}
 
-  /* Checklist */
-  .checklist-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-  .check-item { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-  .check-item.present { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-  .check-item.missing  { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
-  .check-icon { font-weight: 800; font-size: 12px; }
+  /* ── Yellow divider row with INVOICE title ── */
+  .title-bar{
+    display:flex;align-items:stretch;margin-bottom:28px;
+  }
+  .title-bar-yellow{flex:1;background:#f5c518;height:14px;align-self:center;}
+  .title-bar-text{
+    font-size:36px;font-weight:800;color:#1e293b;letter-spacing:-1px;
+    padding:0 16px;line-height:1;
+  }
+  .title-bar-square{width:14px;height:14px;background:#f5c518;align-self:center;}
 
-  /* Line items table */
-  .items-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .items-table th { background: #f3f0ea; padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; border-bottom: 1px solid #e5e0d5; }
-  .items-table td { padding: 8px 10px; border-bottom: 1px solid #f0ece4; }
-  .items-table tr:last-child td { border-bottom: none; }
+  /* ── Party + meta row ── */
+  .party-meta{display:flex;justify-content:space-between;margin-bottom:28px;gap:24px;}
+  .invoice-to-label{font-size:13px;font-weight:700;color:#1e293b;margin-bottom:4px;}
+  .invoice-to-name{font-size:14px;font-weight:800;color:#1e293b;margin-bottom:2px;}
+  .invoice-to-body{font-size:11px;color:#4b5563;line-height:1.7;white-space:pre-line;}
+  .meta-table{font-size:12px;color:#374151;border-collapse:collapse;}
+  .meta-table td{padding:3px 0;}
+  .meta-table .ml{font-weight:600;color:#374151;padding-right:24px;}
+  .meta-table .mv{font-weight:700;color:#1e293b;text-align:right;}
 
-  /* Payment summary */
-  .payment-box { background: #f8f7f4; border: 1px solid #e5e0d5; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
-  .pay-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; border-bottom: 1px solid #ede9e0; }
-  .pay-row:last-child { border-bottom: none; }
-  .pay-row.total { font-size: 15px; font-weight: 800; padding-top: 10px; margin-top: 4px; }
-  .pay-row.total .pay-val { color: ${data.balanceDue > 0 ? '#dc2626' : '#16a34a'}; }
+  /* ── Items table ── */
+  .table-wrap{border:1px solid #d1d5db;border-radius:4px;overflow:hidden;margin-bottom:24px;}
+  .bill-table{width:100%;border-collapse:collapse;}
+  .bill-table thead tr{background:#1e293b;}
+  .bill-table thead th{
+    color:#fff;padding:11px 14px;font-size:11px;font-weight:700;
+    letter-spacing:0.5px;text-transform:uppercase;text-align:left;
+  }
+  .bill-table thead th:first-child{text-align:center;}
+  .bill-table thead th:nth-child(3),.bill-table thead th:nth-child(5){text-align:right;}
+  .bill-table thead th:nth-child(4){text-align:center;}
+  .bill-table tbody tr{border-bottom:1px solid #f3f4f6;}
+  .bill-table tbody tr:last-child{border-bottom:none;}
+  .bill-table tbody td{padding:13px 14px;vertical-align:middle;}
 
-  /* Signature */
-  .sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e0d5; }
-  .sig-box { text-align: center; }
-  .sig-line { border-top: 1px solid #1a1a1a; margin-bottom: 6px; margin-top: 40px; }
-  .sig-label { font-size: 11px; color: #666; }
+  /* ── Bottom section ── */
+  .bottom{display:flex;justify-content:space-between;align-items:flex-start;padding:0 40px;margin-bottom:0;}
+  .bottom-left{max-width:320px;}
+  .thank-you{font-size:13px;font-weight:700;color:#1e293b;margin-bottom:14px;}
+  .tc-label{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:4px;}
+  .tc-body{font-size:10px;color:#6b7280;line-height:1.6;margin-bottom:14px;}
+  .pi-label{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:4px;}
 
-  /* Footer */
-  .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e0d5; text-align: center; font-size: 10px; color: #999; }
+  .totals-block{min-width:240px;}
+  .totals-row{display:flex;justify-content:space-between;font-size:12px;color:#374151;padding:5px 0;border-bottom:1px solid #f3f4f6;}
+  .totals-row .tl{font-weight:500;}
+  .totals-row .tv{font-weight:600;color:#1e293b;}
+  .total-final{
+    display:flex;justify-content:space-between;align-items:center;
+    background:#f5c518;padding:10px 14px;border-radius:4px;margin-top:8px;
+  }
+  .total-final .tfl{font-size:14px;font-weight:800;color:#1e293b;}
+  .total-final .tfv{font-size:16px;font-weight:800;color:#1e293b;}
 
-  @media print {
-    body { padding: 16px; }
-    @page { margin: 12mm; size: A4; }
+  /* ── Yellow bottom bar + footer ── */
+  .footer-bar{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    padding:28px 40px 0 40px;margin-top:28px;
+  }
+  .footer-bar-yellow-left{flex:1;height:6px;background:#f5c518;align-self:flex-end;margin-bottom:18px;}
+  .sig-block{text-align:center;padding:0 24px;}
+  .sig-line{border-top:1px solid #9ca3af;margin-bottom:6px;width:160px;margin-left:auto;margin-right:auto;}
+  .sig-label{font-size:10px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;}
+  .footer-bar-yellow-right{width:24px;height:6px;background:#f5c518;align-self:flex-end;margin-bottom:18px;}
+
+  .footer-contact{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 40px 20px 40px;font-size:10px;color:#6b7280;font-weight:500;
+  }
+  .footer-contact span{display:inline-flex;align-items:center;gap:6px;}
+  .footer-sep{color:#d1d5db;}
+
+  .status-badge{
+    display:inline-block;padding:2px 10px;border-radius:20px;
+    font-size:10px;font-weight:700;letter-spacing:0.5px;
+    background:${statusBg};color:${statusColor};
+    border:1px solid ${statusColor}33;
+  }
+
+  @media print{
+    body{background:#fff;}
+    .page{max-width:100%;}
+    @page{size:A4;margin:8mm;}
   }
 </style>
 </head>
 <body>
-<div class="invoice-wrap">
+<div class="page">
 
-  <!-- Header -->
-  <div class="header">
-    <div>
-      <div class="company-name">Scrap Management CRM</div>
-      <div class="company-sub">Inbound Purchase Invoice</div>
-    </div>
-    <div class="invoice-meta">
-      <div class="invoice-id">${data.id}</div>
-      <div class="invoice-date">Date: ${new Date(data.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-      <div><span class="status-badge">${data.paymentStatus}</span></div>
-    </div>
-  </div>
+  <div class="bar-top"></div>
 
-  <!-- Supplier + Logistics info -->
-  <div class="info-grid">
-    <div class="info-box">
-      <div class="info-box-title">Supplier Details</div>
-      <div class="info-row"><span class="info-label">Name</span><span class="info-value">${data.supplierName}</span></div>
-      ${data.supplierContact ? `<div class="info-row"><span class="info-label">Contact</span><span class="info-value">${data.supplierContact}</span></div>` : ''}
-      <div class="info-row"><span class="info-label">Pickup Location</span><span class="info-value">${data.pickupLocation}</span></div>
-      ${data.notes ? `<div class="info-row"><span class="info-label">Notes</span><span class="info-value">${data.notes}</span></div>` : ''}
-    </div>
-    <div class="info-box">
-      <div class="info-box-title">Logistics & Collection</div>
-      <div class="info-row"><span class="info-label">Method</span><span class="info-value">${LOGISTICS_LABEL[data.logisticsMethod] ?? data.logisticsMethod}</span></div>
-      ${data.collectionDate ? `<div class="info-row"><span class="info-label">Collection Date</span><span class="info-value">${new Date(data.collectionDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>` : ''}
-      ${data.driverName ? `<div class="info-row"><span class="info-label">Driver / Crew</span><span class="info-value">${data.driverName}</span></div>` : ''}
-      ${isHired && data.transportCompanyName ? `<div class="info-row"><span class="info-label">Towing Co.</span><span class="info-value">${data.transportCompanyName}</span></div>` : ''}
-      ${isHired && data.transportTripFee ? `<div class="info-row"><span class="info-label">Trip Fee</span><span class="info-value">B$ ${data.transportTripFee.toFixed(2)}</span></div>` : ''}
-    </div>
-  </div>
+  <div class="inner">
 
-  <!-- Vehicle / Scrap details -->
-  ${data.type === 'VEHICLE' ? `
-  <div class="section">
-    <div class="section-title">Vehicle Details</div>
-    <div class="info-grid" style="margin-bottom:0">
-      <div class="info-box">
-        <div class="info-row"><span class="info-label">Brand</span><span class="info-value">${data.vehicleBrand || '—'}</span></div>
-        <div class="info-row"><span class="info-label">Model</span><span class="info-value">${data.vehicleModel || '—'}</span></div>
-        <div class="info-row"><span class="info-label">Reg. No.</span><span class="info-value">${data.registrationNo || '—'}</span></div>
-      </div>
-      <div class="info-box">
-        ${data.otherInfo ? `<div class="info-row"><span class="info-label">Condition Notes</span><span class="info-value">${data.otherInfo}</span></div>` : ''}
-        <div class="info-row"><span class="info-label">Alloy Wheels</span><span class="info-value">${data.alloyWheelsCount ?? 0}</span></div>
+    <!-- Logo -->
+    <div class="logo-row">
+      <div class="logo-diamond">N</div>
+      <div>
+        <div class="logo-text-main">${COMPANY_NAME}</div>
+        <div class="logo-text-sub">Scrap Metal &amp; Recycling Enterprise</div>
       </div>
     </div>
-  </div>` : ''}
 
-  ${data.type !== 'VEHICLE' && (data.lotName || data.scrapDescription) ? `
-  <div class="section">
-    <div class="section-title">Scrap / Lot Details</div>
-    <div class="info-box">
-      ${data.lotName ? `<div class="info-row"><span class="info-label">Lot Name</span><span class="info-value">${data.lotName}</span></div>` : ''}
-      ${data.grossTonnageEstimate ? `<div class="info-row"><span class="info-label">Est. Tonnage</span><span class="info-value">${data.grossTonnageEstimate} KG</span></div>` : ''}
-      ${data.scrapDescription ? `<div class="info-row"><span class="info-label">Description</span><span class="info-value">${data.scrapDescription}</span></div>` : ''}
+    <!-- INVOICE title bar -->
+    <div class="title-bar">
+      <div class="title-bar-yellow"></div>
+      <div class="title-bar-text">INVOICE</div>
+      <div class="title-bar-square"></div>
     </div>
-  </div>` : ''}
 
-  ${checklistHtml}
-  ${lineItemsHtml}
+    <!-- Party + Meta -->
+    <div class="party-meta">
+      <div>
+        <div class="invoice-to-label">Invoice to:</div>
+        <div class="invoice-to-name">${sellerName}</div>
+        <div class="invoice-to-body">${sellerAddress}\nContact: ${sellerContact}${sellerIce ? `\nICE No: ${sellerIce}` : ''}</div>
+      </div>
+      <div>
+        <table class="meta-table">
+          <tr><td class="ml">Invoice #</td><td class="mv">${data.id}</td></tr>
+          <tr><td class="ml">Date</td><td class="mv">${issueDateStr}</td></tr>
+          <tr><td class="ml">Status</td><td class="mv"><span class="status-badge">${statusLabel}</span></td></tr>
+          <tr><td class="ml">Method</td><td class="mv">${methodDisplay}</td></tr>
+        </table>
+      </div>
+    </div>
 
-  <!-- Payment Summary -->
-  <div class="section">
-    <div class="section-title">Payment Summary</div>
-    <div class="payment-box">
-      <div class="pay-row"><span>Agreed Price</span><span class="pay-val">B$ ${data.agreedPrice.toFixed(2)}</span></div>
-      ${data.advancePaid > 0 ? `<div class="pay-row"><span>Advance Paid</span><span class="pay-val" style="color:#d97706">− B$ ${data.advancePaid.toFixed(2)}</span></div>` : ''}
-      ${data.advanceDeduction > 0 ? `<div class="pay-row"><span>Advance Deduction</span><span class="pay-val" style="color:#d97706">− B$ ${data.advanceDeduction.toFixed(2)}</span></div>` : ''}
-      <div class="pay-row"><span>Payment Method</span><span class="pay-val">${data.paymentMethod === 'CASH' ? 'Cash' : 'Bank Transfer'}</span></div>
-      <div class="pay-row total"><span>Balance Due</span><span class="pay-val">B$ ${data.balanceDue.toFixed(2)}</span></div>
+    <!-- Items Table -->
+    <div class="table-wrap">
+      <table class="bill-table">
+        <thead>
+          <tr>
+            <th style="width:48px;text-align:center;">SL.</th>
+            <th>Item Description</th>
+            <th style="text-align:right;">Price</th>
+            <th style="text-align:center;">Qty.</th>
+            <th style="text-align:right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /inner -->
+
+  <!-- Bottom section -->
+  <div class="bottom">
+    <div class="bottom-left">
+      <div class="thank-you">Thank you for your business</div>
+
+      <div class="tc-label">Terms &amp; Conditions</div>
+      <div class="tc-body">1. All goods sold as-is. No warranty on any scrap or used vehicle.<br>2. Full payment due upon collection. Goods withheld until payment confirmed.<br>3. All sales final. Disputes must be reported within 3 working days.</div>
+
+
+    </div>
+
+    <div class="totals-block">
+      <div class="totals-row"><span class="tl">Sub Total:</span><span class="tv">B$${subtotal.toFixed(2)}</span></div>
+      ${advancePaid > 0 ? `<div class="totals-row"><span class="tl">Advance Paid:</span><span class="tv" style="color:#d97706;">− B$${advancePaid.toFixed(2)}</span></div>` : ''}
+      ${advanceDeduct > 0 ? `<div class="totals-row"><span class="tl">Advance Deduction:</span><span class="tv" style="color:#d97706;">− B$${advanceDeduct.toFixed(2)}</span></div>` : ''}
+
+      ${balanceDue > 0 && !isPaid ? `<div class="totals-row"><span class="tl">Balance Due:</span><span class="tv" style="color:#dc2626;">B$${balanceDue.toFixed(2)}</span></div>` : ''}
+      <div class="total-final">
+        <span class="tfl">Total:</span>
+        <span class="tfv">B$${displayTotal.toFixed(2)}</span>
+      </div>
     </div>
   </div>
 
-  <!-- Signatures -->
-  <div class="sig-row">
-    <div class="sig-box">
+  <!-- Footer bar + signature -->
+  <div class="footer-bar">
+    <div class="footer-bar-yellow-left"></div>
+    <div class="sig-block">
       <div class="sig-line"></div>
-      <div class="sig-label">Supplier Signature &amp; Date</div>
+      <div class="sig-label">Authorised Sign</div>
     </div>
-    <div class="sig-box">
-      <div class="sig-line"></div>
-      <div class="sig-label">Authorised by (Company)</div>
-    </div>
+    <div class="footer-bar-yellow-right"></div>
   </div>
 
-  <div class="footer">This is a computer-generated purchase invoice. Printed on ${new Date().toLocaleString('en-GB')}.</div>
+  <div class="footer-contact">
+    <span>
+      <span>${COMPANY_PHONE}</span>
+      <span class="footer-sep">|</span>
+      <span>${COMPANY_ADDRESS.split('\n')[1]}</span>
+      <span class="footer-sep">|</span>
+      <span>nur-afiq-recycling.com</span>
+    </span>
+    <span style="color:#9ca3af;">Generated: ${new Date().toLocaleDateString('en-GB')}</span>
+  </div>
+
 </div>
-<script>window.onload = () => { window.print(); }<\/script>
+
+<script>window.onload=()=>window.print();</script>
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=900,height=700');
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
+  const win = window.open('', '_blank', 'width=860,height=900');
+  if (win) { win.document.write(html); win.document.close(); }
 }

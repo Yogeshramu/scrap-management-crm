@@ -45,3 +45,5 @@ export function SkeletonPanel({ lines = 4 }: { lines?: number }) {
     </div>
   );
 }
+
+export { FullPageLoader, TopWaveLoader, InlineLoader, Spinner } from './Loader';

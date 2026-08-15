@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useCachedFetch } from '../../lib/useCachedFetch';
+import { dataCache } from '../../lib/cache';
 import {
   TrendingDown, TrendingUp, Users, Truck, Car,
   AlertTriangle, ShieldCheck, FileText,
@@ -51,81 +53,37 @@ interface CashRecord {
 }
 
 export default function OverviewDashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [cashFlow, setCashFlow] = useState<CashRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [visaToasts, setVisaToasts] = useState<VisaAlert[]>([]);
   const toastShown = useRef(false);
 
+  const { data: stats, loading: statsLoading, error, refresh: refreshStats } = useCachedFetch<Stats>('/api/dashboard', { ttl: 30_000 });
+  const { data: logsRaw, loading: logsLoading, refresh: refreshLogs } = useCachedFetch<AuditLog[]>('/api/auditlogs?limit=8');
+  const { data: cashRaw, loading: cashLoading, refresh: refreshCash } = useCachedFetch<CashRecord[]>('/api/cashbook?limit=6');
+  const { data: employees } = useCachedFetch<any[]>('/api/employees', { ttl: 300_000 });
+
+  const loading = statsLoading || logsLoading || cashLoading;
+  const logs = useMemo(() => Array.isArray(logsRaw) ? logsRaw.slice(0, 8) : [], [logsRaw]);
+  const cashFlow = useMemo(() => Array.isArray(cashRaw) ? cashRaw.slice(0, 6) : [], [cashRaw]);
+
+  const handleRefresh = useCallback(() => {
+    dataCache.invalidate('/api/dashboard', '/api/auditlogs?limit=8', '/api/cashbook?limit=6');
+    refreshStats(); refreshLogs(); refreshCash();
+  }, [refreshStats, refreshLogs, refreshCash]);
+
   useEffect(() => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort('timeout'), 10000);
-    let cancelled = false;
-
-    async function fetchData() {
-      try {
-        setLoading(true);
-        setError(null);
-        const [statsRes, logsRes, cashRes] = await Promise.all([
-          fetch('/api/dashboard', { signal: controller.signal }),
-          fetch('/api/auditlogs?limit=8', { signal: controller.signal }),
-          fetch('/api/cashbook?limit=6', { signal: controller.signal }),
-        ]);
-        clearTimeout(timeoutId);
-        if (!statsRes.ok) throw new Error(`Dashboard API error: ${statsRes.status}`);
-        const [statsData, logsData, cashData] = await Promise.all([
-          statsRes.json(), logsRes.json(), cashRes.json()
-        ]);
-        if (cancelled) return;
-        setStats(statsData);
-        setLogs(Array.isArray(logsData) ? logsData.slice(0, 8) : []);
-        setCashFlow(Array.isArray(cashData) ? cashData.slice(0, 6) : []);
-      } catch (err: any) {
-        if (cancelled) return;
-        if (err.name === 'AbortError') {
-          if (controller.signal.reason === 'timeout') {
-            setError('Request timed out. Please try again.');
-          }
-          return;
-        }
-        setError(err.message || 'Failed to load dashboard data.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    fetchData();
-
-    if (!toastShown.current) {
+    if (!toastShown.current && Array.isArray(employees) && employees.length > 0) {
       toastShown.current = true;
-      fetch('/api/employees')
-        .then(r => r.json())
-        .then((emps: any[]) => {
-          if (!Array.isArray(emps)) return;
-          const today = new Date();
-          const in30 = new Date(); in30.setDate(today.getDate() + 30);
-          const alerts = emps
-            .filter(e => e.visaExpiry && new Date(e.visaExpiry) <= in30)
-            .map(e => ({
-              id: e.id,
-              employeeId: e.employeeId,
-              name: e.name,
-              visaExpiry: e.visaExpiry,
-              daysLeft: Math.ceil((new Date(e.visaExpiry).getTime() - today.getTime()) / 86400000),
-            }));
-          if (alerts.length > 0) setVisaToasts(alerts);
-        })
-        .catch(() => {});
+      const today = new Date();
+      const in30 = new Date(); in30.setDate(today.getDate() + 30);
+      const alerts = employees
+        .filter(e => e.visaExpiry && new Date(e.visaExpiry) <= in30)
+        .map(e => ({
+          id: e.id, employeeId: e.employeeId, name: e.name, visaExpiry: e.visaExpiry,
+          daysLeft: Math.ceil((new Date(e.visaExpiry).getTime() - today.getTime()) / 86400000),
+        }));
+      if (alerts.length > 0) setVisaToasts(alerts);
     }
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [refreshKey]);
+  }, [employees]);
 
   return (
     <div>
@@ -150,7 +108,7 @@ export default function OverviewDashboard() {
           <h1>Operations Control Overview</h1>
           <p className="page-title-desc">Real-time status metrics, daily material processing speed, and compliance notifications.</p>
         </div>
-        <button className="btn-primary" onClick={() => setRefreshKey(prev => prev + 1)} style={{ padding: '10px 18px', fontSize: '0.875rem' }}>
+        <button className="btn-primary" onClick={handleRefresh} style={{ padding: '10px 18px', fontSize: '0.875rem' }}>
           <RefreshCw size={16} />
           Refresh Stats
         </button>
@@ -194,7 +152,7 @@ export default function OverviewDashboard() {
         </>
       ) : error ? (
         <div style={{ padding: '80px', textAlign: 'center', color: '#ef4444', fontSize: '1rem' }}>
-          {error} — <button onClick={() => setRefreshKey(p => p + 1)} style={{ background: 'none', border: 'none', color: '#c9a84c', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>
+          {error} — <button onClick={handleRefresh} style={{ background: 'none', border: 'none', color: '#c9a84c', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>
         </div>
       ) : (
         <>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Lock, User } from 'lucide-react';
+import { Spinner } from '../../components/Loader';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -147,8 +148,8 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '14px', marginTop: '8px' }}>
-            {loading ? 'Authenticating...' : 'Sign In'}
+          <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '14px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {loading ? <><Spinner /> Authenticating...</> : 'Sign In'}
           </button>
         </form>
       </div>

@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withMiddleware } from '@/lib/apiMiddleware';
 
-export async function GET() {
+export const GET = withMiddleware(async (_req: NextRequest) => {
   try {
     const year = new Date().getFullYear();
     const last = await prisma.purchase.findFirst({
@@ -14,4 +15,4 @@ export async function GET() {
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
-}
+}, { minRole: 'STAFF' });

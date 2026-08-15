@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, CreditCard, Save, X, TrendingDown } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonTableRows, SkeletonBox } from '../../components/Skeleton';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface Expense {
   id: number;
@@ -33,7 +34,7 @@ export default function ExpensesPage() {
     const params = new URLSearchParams();
     if (filterFrom) params.set('from', filterFrom);
     if (filterTo) params.set('to', filterTo);
-    const res = await fetch(`/api/expenses?${params}`);
+    const res = await apiFetch(`/api/expenses?${params}`);
     const data = await res.json();
     setExpenses(Array.isArray(data) ? data : []);
     setLoading(false);
@@ -42,7 +43,7 @@ export default function ExpensesPage() {
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     try {
-      const res = await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const res = await apiFetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setMessage({ type: 'success', text: `Expense recorded: B$ ${form.amount} — ${form.description}` });

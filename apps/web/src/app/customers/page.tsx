@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, UserCheck, Save, X, Pencil, Phone } from 'lucide-react';
 import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface Customer {
   id: number;
@@ -24,7 +25,7 @@ export default function CustomersPage() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch('/api/sales/customers');
+      const res = await apiFetch('/api/sales/customers');
       if (!res.ok) throw new Error('Failed to fetch customers');
       const data = await res.json();
       setCustomers(Array.isArray(data) ? data : []);

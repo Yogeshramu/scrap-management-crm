@@ -1,73 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/rbac';
+import { withMiddleware } from '@/lib/apiMiddleware';
+import { withRetry } from '@/lib/retry';
 
-export async function GET() {
-  try {
-    const purchases = await prisma.purchase.findMany({
-      take: 50,
-      include: {
-        supplier: { select: { id: true, name: true, contact: true, outstandingAdvance: true } },
-        transportCompany: { select: { id: true, name: true, phone: true } },
-        scrapLineItems: true,
-      },
-      orderBy: { date: 'desc' },
-    });
-    return NextResponse.json(purchases);
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
-}
+export const GET = withMiddleware(async () => {
+  const purchases = await withRetry(() => prisma.purchase.findMany({
+    take: 50,
+    select: {
+      id: true, type: true, date: true, supplierId: true, pickupLocation: true,
+      logisticsMethod: true, driverName: true, agreedPrice: true, advancePaid: true,
+      previousAdvanceDeduction: true, cashToPay: true, paymentStatus: true, paymentMethod: true,
+      notes: true, collectionDate: true,
+      vehicleBrand: true, vehicleModel: true, registrationNo: true, otherInfo: true,
+      engineIntact: true, gearboxPresent: true, catalyticConverter: true, battery: true,
+      radiator: true, wiring: true, alloyWheelsCount: true, vehiclePhoto: true,
+      lotName: true, scrapDescription: true, scrapPhoto: true, grossTonnageEstimate: true,
+      transportTripFee: true, transportPaymentStatus: true, transportCompanyName: true,
+      supplier: { select: { id: true, name: true, contact: true, outstandingAdvance: true } },
+      transportCompany: { select: { id: true, name: true, phone: true } },
+      purchaseItems: { select: { id: true, itemIndex: true, vehicleBrand: true, vehicleModel: true, registrationNo: true, agreedPrice: true } },
+    },
+    orderBy: { date: 'desc' },
+  }));
+  return NextResponse.json(purchases, {
+    headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+  });
+});
 
-export async function POST(req: NextRequest) {
-  const deny = await requireRole(req, 'MANAGER');
-  if (deny) return deny;
+export const POST = withMiddleware(async (req: NextRequest) => {
   try {
     const body = await req.json();
     const {
       type, supplierId, pickupLocation, logisticsMethod, driverName, agreedPrice,
       paymentStatus, paymentMethod, notes,
-      // Vehicle fields
       vehicleBrand, vehicleModel, registrationNo, otherInfo,
       engineIntact, gearboxPresent, catalyticConverter, battery, radiator, wiring,
       alloyWheelsCount, vehiclePhoto, collectionDate, advancePaid,
-      // Scrap fields
       lotName, scrapDescription, scrapCode, scrapPhoto, grossTonnageEstimate,
-      // Logistics
       transportCompanyId, transportCompanyName, transportTripFee,
-      lineItems
+      lineItems,
     } = body;
 
-    const supplier = await prisma.supplier.findUnique({ where: { id: parseInt(supplierId) } });
+    const supplier = await prisma.supplier.findUnique({
+      where: { id: parseInt(supplierId) },
+      select: { id: true, name: true, outstandingAdvance: true },
+    });
     if (!supplier) return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
 
     const isScrap = type === 'MIXED_SCRAP' || type === 'LOOSE_SCRAP';
     const price = parseFloat(agreedPrice) || 0;
     const advance = parseFloat(advancePaid) || 0;
     const advanceDeduction = supplier.outstandingAdvance > 0 ? Math.min(supplier.outstandingAdvance, price) : 0;
-    const finalCashDue = price - advance;
     const isHired = logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY';
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Generate ID inside transaction to prevent race conditions
+    const result = await withRetry(() => prisma.$transaction(async (tx) => {
       const currentYear = new Date().getFullYear();
       const last = await tx.purchase.findFirst({
         where: { id: { startsWith: `PUR-${currentYear}-` } },
         orderBy: { id: 'desc' },
         select: { id: true },
       });
-      const lastNum = last ? parseInt(last.id.split('-')[2]) : 0;
-      const purchaseId = `PUR-${currentYear}-${(lastNum + 1).toString().padStart(3, '0')}`;
+      const purchaseId = `PUR-${currentYear}-${((last ? parseInt(last.id.split('-')[2]) : 0) + 1).toString().padStart(3, '0')}`;
+
       const record = await tx.purchase.create({
         data: {
           id: purchaseId, type, supplierId: supplier.id, pickupLocation,
           logisticsMethod, driverName: driverName || '',
           agreedPrice: price, previousAdvanceDeduction: advanceDeduction,
-          cashToPay: finalCashDue, paymentStatus, paymentMethod,
-          notes: notes || null,
-          advancePaid: advance,
+          cashToPay: price - advance, paymentStatus, paymentMethod,
+          notes: notes || null, advancePaid: advance,
           collectionDate: collectionDate ? new Date(collectionDate) : null,
-          // Vehicle
           vehicleBrand: type === 'VEHICLE' ? vehicleBrand || null : null,
           vehicleModel: type === 'VEHICLE' ? vehicleModel || null : null,
           registrationNo: type === 'VEHICLE' ? registrationNo || null : null,
@@ -80,47 +82,73 @@ export async function POST(req: NextRequest) {
           wiring: type === 'VEHICLE' ? !!wiring : null,
           alloyWheelsCount: type === 'VEHICLE' ? parseInt(alloyWheelsCount) || 0 : 0,
           vehiclePhoto: type === 'VEHICLE' ? vehiclePhoto || '' : '',
-          // Scrap
           lotName: isScrap ? lotName : null,
           scrapCode: isScrap ? scrapCode || null : null,
           scrapDescription: isScrap ? scrapDescription : null,
           scrapPhoto: isScrap ? scrapPhoto || '' : '',
           grossTonnageEstimate: isScrap ? parseFloat(grossTonnageEstimate) || 0 : null,
-          // Transport
           transportCompanyId: isHired && transportCompanyId ? parseInt(transportCompanyId) : null,
-          transportCompanyName: isHired ? (transportCompanyName || null) : null,
+          transportCompanyName: isHired ? transportCompanyName || null : null,
           transportTripFee: isHired && transportTripFee ? parseFloat(transportTripFee) : 0,
-          transportPaymentStatus: isHired ? 'UNPAID' : 'N/A'
-        }
+          transportPaymentStatus: isHired ? 'UNPAID' : 'N/A',
+        },
       });
 
+      const ops: Promise<unknown>[] = [];
+
       if (isScrap && Array.isArray(lineItems) && lineItems.length > 0) {
-        await tx.scrapLineItem.createMany({
+        ops.push(tx.scrapLineItem.createMany({
           data: lineItems.map((li: any) => ({
             purchaseId, material: li.material,
             qty: parseFloat(li.qty), unit: li.unit,
             rate: parseFloat(li.rate),
-            amount: parseFloat(li.qty) * parseFloat(li.rate)
-          }))
-        });
+            amount: parseFloat(li.qty) * parseFloat(li.rate),
+          })),
+        }));
+      }
+
+      if (type === 'VEHICLE' && Array.isArray(body.vehicles) && body.vehicles.length > 0) {
+        ops.push(tx.purchaseItem.createMany({
+          data: body.vehicles.map((v: any, idx: number) => ({
+            id: `${purchaseId}-${idx + 1}`,
+            purchaseId, itemIndex: idx + 1,
+            vehicleBrand: v.brand || null, vehicleModel: v.model || null,
+            registrationNo: v.regNo || null, otherInfo: v.otherInfo || null,
+            engineIntact: v.engineIntact ?? true, gearboxPresent: v.gearboxPresent ?? true,
+            catalyticConverter: v.catalyticConverter ?? true, battery: v.battery ?? true,
+            radiator: v.radiator ?? true, wiring: v.wiring ?? true,
+            alloyWheelsCount: parseInt(v.alloyWheels) || 0,
+            agreedPrice: parseFloat(v.price) || 0,
+            logisticsMethod: v.logisticsMethod || logisticsMethod,
+            collectionDate: v.collectionDate ? new Date(v.collectionDate) : (collectionDate ? new Date(collectionDate) : null),
+            driverName: v.driverName || driverName || null,
+            transportCompanyId: v.transportCompanyId ? parseInt(v.transportCompanyId) : null,
+            transportCompanyName: v.transportCompanyName || null,
+            transportTripFee: parseFloat(v.transportTripFee) || 0,
+          })),
+        }));
       }
 
       if (advanceDeduction > 0) {
-        await tx.supplier.update({ where: { id: supplier.id }, data: { outstandingAdvance: { decrement: advanceDeduction } } });
+        ops.push(tx.supplier.update({ where: { id: supplier.id }, data: { outstandingAdvance: { decrement: advanceDeduction } } }));
       }
 
-      if (paymentStatus === 'PAID') {
-        await tx.cashBook.create({ data: { type: 'OUT', category: 'PURCHASE', amount: price, referenceId: purchaseId, description: `Payment for purchase ${purchaseId}` } });
-      } else if (paymentStatus === 'PARTIAL' && advance > 0) {
-        await tx.cashBook.create({ data: { type: 'OUT', category: 'PURCHASE', amount: advance, referenceId: purchaseId, description: `Partial payment for purchase ${purchaseId}` } });
+      if (paymentStatus === 'PAID' || (paymentStatus === 'PARTIAL' && advance > 0)) {
+        ops.push(tx.cashBook.create({
+          data: { type: 'OUT', category: 'PURCHASE', amount: paymentStatus === 'PAID' ? price : advance, referenceId: purchaseId, description: `${paymentStatus === 'PAID' ? 'Full' : 'Partial'} payment for purchase ${purchaseId}` },
+        }));
       }
 
-      await tx.auditLog.create({ data: { action: `CREATED PURCHASE ${purchaseId}`, performedBy: 'Manager', details: `Purchase for ${supplier.name}. Price: B$${price}, Advance: B$${advance}.` } });
+      await Promise.all(ops);
       return record;
-    });
+    }));
 
-    return NextResponse.json(result);
+    prisma.auditLog.create({
+      data: { action: `CREATED PURCHASE ${result.id}`, performedBy: 'Manager', details: `Supplier: ${supplier.name}. Price: B$${price}, Advance: B$${advance}.` },
+    }).catch(console.error);
+
+    return NextResponse.json(result, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
-}
+}, { minRole: 'MANAGER', idempotent: true });

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withMiddleware } from '@/lib/apiMiddleware';
 
-export async function GET(req: NextRequest) {
+export const GET = withMiddleware(async (req: NextRequest) => {
   try {
     const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '50', 10), 100);
     const logs = await prisma.auditLog.findMany({
@@ -13,4 +14,4 @@ export async function GET(req: NextRequest) {
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
-}
+}, { minRole: 'MANAGER' });

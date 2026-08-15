@@ -5,6 +5,7 @@ import { Plus, Users, Save, X, Pencil, Briefcase, Phone, CreditCard, AlertTriang
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
 import FileUpload from '../../components/FileUpload';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface Employee {
   id: number;
@@ -59,7 +60,7 @@ export default function EmployeesPage() {
   useEffect(() => { fetchEmployees(); }, []);
 
   const fetchEmployees = async () => {
-    const res = await fetch('/api/employees');
+    const res = await apiFetch('/api/employees');
     const data = await res.json();
     setEmployees(Array.isArray(data) ? data : []);
     setLoading(false);

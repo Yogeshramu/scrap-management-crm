@@ -1,60 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
-import { requireRole } from '../../../lib/rbac';
+import { prisma } from '@/lib/prisma';
+import { withMiddleware } from '@/lib/apiMiddleware';
+import { withRetry } from '@/lib/retry';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const month = searchParams.get('month');
-    const year = searchParams.get('year');
-
-    const employees = await prisma.employee.findMany({
-      where: { status: 'Active' },
-      include: {
-        attendance: month && year ? {
-          where: {
-            date: {
-              gte: new Date(parseInt(year), parseInt(month) - 1, 1),
-              lt: new Date(parseInt(year), parseInt(month), 1),
-            },
+export const GET = withMiddleware(async (req: NextRequest) => {
+  const { searchParams } = new URL(req.url);
+  const month = searchParams.get('month');
+  const year = searchParams.get('year');
+  const employees = await withRetry(() => prisma.employee.findMany({
+    where: { status: 'Active' },
+    select: {
+      id: true, employeeId: true, name: true, position: true, department: true,
+      attendance: month && year ? {
+        where: {
+          date: {
+            gte: new Date(parseInt(year), parseInt(month) - 1, 1),
+            lt: new Date(parseInt(year), parseInt(month), 1),
           },
-          orderBy: { date: 'asc' },
-        } : { orderBy: { date: 'desc' }, take: 31 },
+        },
+        select: { id: true, date: true, status: true },
+        orderBy: { date: 'asc' },
+      } : {
+        select: { id: true, date: true, status: true },
+        orderBy: { date: 'desc' },
+        take: 31,
       },
-      orderBy: { name: 'asc' },
-    });
-    return NextResponse.json(employees);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
+    },
+    orderBy: { name: 'asc' },
+  }));
+  return NextResponse.json(employees);
+});
 
-export async function POST(req: NextRequest) {
-  const deny = await requireRole(req, 'MANAGER');
-  if (deny) return deny;
+export const POST = withMiddleware(async (req: NextRequest) => {
   try {
-    const body = await req.json();
-    const { records } = body;
+    const { records } = await req.json();
     if (!Array.isArray(records) || records.length === 0) {
       return NextResponse.json({ error: 'Records array required' }, { status: 400 });
     }
-
-    // Upsert each attendance record
-    const results = await Promise.all(
-      records.map(async (r: { employeeId: number; date: string; status: string }) => {
-        const dateObj = new Date(r.date);
-        const existing = await prisma.attendance.findFirst({
-          where: { employeeId: r.employeeId, date: dateObj },
-        });
-        if (existing) {
-          return prisma.attendance.update({ where: { id: existing.id }, data: { status: r.status } });
-        }
-        return prisma.attendance.create({ data: { employeeId: r.employeeId, date: dateObj, status: r.status } });
-      })
-    );
-
+    const results = await withRetry(() => prisma.$transaction(
+      records.map((r: { employeeId: number; date: string; status: string }) =>
+        prisma.attendance.upsert({
+          where: { employeeId_date: { employeeId: r.employeeId, date: new Date(r.date) } },
+          update: { status: r.status },
+          create: { employeeId: r.employeeId, date: new Date(r.date), status: r.status },
+        })
+      )
+    ));
     return NextResponse.json({ saved: results.length });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+}, { minRole: 'MANAGER', idempotent: true });

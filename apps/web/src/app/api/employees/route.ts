@@ -1,55 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
-import { requireRole } from '../../../lib/rbac';
+import { prisma } from '@/lib/prisma';
+import { withMiddleware } from '@/lib/apiMiddleware';
+import { withRetry } from '@/lib/retry';
 
-export async function GET(req: NextRequest) {
-  const deny = await requireRole(req, 'MANAGER');
-  if (deny) return deny;
-  try {
-    const employees = await prisma.employee.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-    return NextResponse.json(employees);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
+export const GET = withMiddleware(async () => {
+  const employees = await withRetry(() => prisma.employee.findMany({
+    select: {
+      id: true, employeeId: true, name: true, icNumber: true, passportNumber: true,
+      country: true, visaExpiry: true, phone: true, position: true, department: true,
+      salary: true, bankAccount: true, bankName: true, joinDate: true, status: true, createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  }));
+  return NextResponse.json(employees);
+}, { minRole: 'MANAGER' });
 
-export async function POST(req: NextRequest) {
-  const deny = await requireRole(req, 'MANAGER');
-  if (deny) return deny;
+export const POST = withMiddleware(async (req: NextRequest) => {
   try {
-    const body = await req.json();
-    const { name, icNumber, passportNumber, country, visaExpiry, phone, position, department, salary, bankAccount, bankName, joinDate } = body;
+    const { name, icNumber, passportNumber, country, visaExpiry, phone, position, department, salary, bankAccount, bankName, joinDate } = await req.json();
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
-    const count = await prisma.employee.count();
-    const employeeId = `EMP-${String(count + 1).padStart(3, '0')}`;
+    const employee = await withRetry(() => prisma.$transaction(async (tx) => {
+      const last = await tx.employee.findFirst({ orderBy: { createdAt: 'desc' }, select: { employeeId: true } });
+      const lastNum = last ? parseInt(last.employeeId.split('-')[1]) : 0;
+      const employeeId = `EMP-${String(lastNum + 1).padStart(3, '0')}`;
+      return tx.employee.create({
+        data: { employeeId, name, icNumber, passportNumber, country, visaExpiry: visaExpiry ? new Date(visaExpiry) : null, phone, position, department, salary: parseFloat(salary) || 0, bankAccount, bankName, joinDate: joinDate ? new Date(joinDate) : new Date() },
+      });
+    }));
 
-    const employee = await prisma.employee.create({
-      data: {
-        employeeId,
-        name,
-        icNumber,
-        passportNumber,
-        country,
-        visaExpiry: visaExpiry ? new Date(visaExpiry) : null,
-        phone,
-        position,
-        department,
-        salary: parseFloat(salary) || 0,
-        bankAccount,
-        bankName,
-        joinDate: joinDate ? new Date(joinDate) : new Date(),
-      },
-    });
-
-    await prisma.auditLog.create({
-      data: { action: `CREATED EMPLOYEE ${employeeId}`, performedBy: 'Manager', details: `Name: ${name}` },
-    });
+    prisma.auditLog.create({
+      data: { action: `CREATED EMPLOYEE ${employee.employeeId}`, performedBy: 'Manager', details: `Name: ${name}` },
+    }).catch(console.error);
 
     return NextResponse.json(employee, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+}, { minRole: 'MANAGER', idempotent: true });

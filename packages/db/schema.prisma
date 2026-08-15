@@ -62,6 +62,7 @@ model Purchase {
   scrapPhoto               String?           // Image file/URL
   grossTonnageEstimate     Float?            // Gross Lot Tonnage in KG
   scrapLineItems           ScrapLineItem[]
+  purchaseItems            PurchaseItem[]
 
   // Transporter (if Towing / HIAB is external)
   transportCompanyId       Int?
@@ -74,6 +75,7 @@ model Purchase {
   @@index([supplierId])
   @@index([transportCompanyId])
   @@index([date])
+  @@index([type, date])
   @@index([transportCompanyId, transportPaymentStatus])
 }
 
@@ -86,6 +88,33 @@ model ScrapLineItem {
   unit       String
   rate       Float
   amount     Float
+
+  @@index([purchaseId])
+}
+
+model PurchaseItem {
+  id                 String   @id // Format: PUR-2026-015-1
+  purchaseId         String
+  purchase           Purchase @relation(fields: [purchaseId], references: [id])
+  itemIndex          Int      @default(1)
+  vehicleBrand       String?
+  vehicleModel       String?
+  registrationNo     String?
+  otherInfo          String?
+  engineIntact       Boolean?
+  gearboxPresent     Boolean?
+  catalyticConverter Boolean?
+  battery            Boolean?
+  radiator           Boolean?
+  wiring             Boolean?
+  alloyWheelsCount   Int?     @default(0)
+  agreedPrice        Float    @default(0)
+  logisticsMethod    String?
+  collectionDate     DateTime?
+  driverName         String?
+  transportCompanyId   Int?
+  transportCompanyName String?
+  transportTripFee     Float?  @default(0)
 
   @@index([purchaseId])
 }
@@ -148,6 +177,7 @@ model Sale {
 
   @@index([customerId])
   @@index([date])
+  @@index([paymentStatus])
 }
 
 model SaleItem {
@@ -180,6 +210,11 @@ model VehicleInventory {
   maintenanceLogs    VehicleMaintenance[]
   fuelLogs           VehicleFuel[]
   createdAt          DateTime             @default(now())
+
+  @@index([roadTaxExpiry])
+  @@index([insuranceExpiry])
+  @@index([inspectionExpiry])
+  @@index([status])
 }
 
 model VehicleMaintenance {
@@ -235,6 +270,9 @@ model Employee {
   createdAt    DateTime     @default(now())
   attendance   Attendance[]
   salaryRecords SalaryRecord[]
+
+  @@index([status])
+  @@index([visaExpiry])
 }
 
 model Attendance {
@@ -246,6 +284,7 @@ model Attendance {
   createdAt  DateTime @default(now())
 
   @@index([employeeId, date])
+  @@unique([employeeId, date])
 }
 
 model SalaryRecord {

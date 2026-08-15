@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { BarChart3, Download, TrendingUp, TrendingDown, Truck, Users, Building2, UserCheck, CreditCard } from 'lucide-react';
-import { SkeletonMetricCard, SkeletonTableRows } from '../../components/Skeleton';
+import { SkeletonMetricCard, SkeletonTableRows, Spinner } from '../../components/Skeleton';
+import { apiFetch } from '../../lib/apiFetch';
 
 type ReportType = 'sales' | 'purchases' | 'expenses' | 'salary' | 'employees' | 'suppliers' | 'customers';
 type DatePreset = 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -64,7 +65,7 @@ export default function ReportsPage() {
       let summary: Record<string, any> = {};
 
       if (reportType === 'sales') {
-        const res = await fetch(`/api/sales`);
+        const res = await apiFetch(`/api/sales`);
         const all: any[] = await res.json();
         rows = all.filter(s => s.date >= from && s.date <= to + 'T23:59:59');
         summary = {
@@ -74,7 +75,7 @@ export default function ReportsPage() {
           'Unpaid': rows.filter(r => r.paymentStatus === 'UNPAID').length,
         };
       } else if (reportType === 'purchases') {
-        const res = await fetch(`/api/purchases`);
+        const res = await apiFetch(`/api/purchases`);
         const all: any[] = await res.json();
         rows = all.filter(p => p.date >= from && p.date <= to + 'T23:59:59');
         summary = {
@@ -84,14 +85,14 @@ export default function ReportsPage() {
           'Scrap Lots': rows.filter(r => r.type === 'MIXED_SCRAP').length,
         };
       } else if (reportType === 'expenses') {
-        const res = await fetch(`/api/expenses?from=${from}&to=${to}`);
+        const res = await apiFetch(`/api/expenses?from=${from}&to=${to}`);
         rows = await res.json();
         summary = {
           'Total Expenses': rows.length,
           'Total Amount': `B$ ${rows.reduce((s: number, r: any) => s + r.amount, 0).toFixed(2)}`,
         };
       } else if (reportType === 'salary') {
-        const res = await fetch(`/api/salary`);
+        const res = await apiFetch(`/api/salary`);
         rows = await res.json();
         summary = {
           'Total Records': rows.length,
@@ -100,7 +101,7 @@ export default function ReportsPage() {
           'Unpaid': rows.filter((r: any) => r.status === 'UNPAID').length,
         };
       } else if (reportType === 'employees') {
-        const res = await fetch(`/api/employees`);
+        const res = await apiFetch(`/api/employees`);
         rows = await res.json();
         summary = {
           'Total Employees': rows.length,
@@ -108,14 +109,14 @@ export default function ReportsPage() {
           'Monthly Payroll': `B$ ${rows.filter((r: any) => r.status === 'Active').reduce((s: number, r: any) => s + r.salary, 0).toFixed(2)}`,
         };
       } else if (reportType === 'suppliers') {
-        const res = await fetch(`/api/suppliers`);
+        const res = await apiFetch(`/api/suppliers`);
         rows = await res.json();
         summary = {
           'Total Suppliers': rows.length,
           'Total Advances': `B$ ${rows.reduce((s: number, r: any) => s + r.outstandingAdvance, 0).toFixed(2)}`,
         };
       } else if (reportType === 'customers') {
-        const res = await fetch(`/api/sales/customers`);
+        const res = await apiFetch(`/api/sales/customers`);
         rows = await res.json();
         summary = { 'Total Customers': rows.length };
       }
@@ -189,8 +190,8 @@ export default function ReportsPage() {
             </div>
           </>
         )}
-        <button className="btn-primary" style={{ padding: '12px 24px' }} onClick={fetchReport} disabled={loading}>
-          <BarChart3 size={16} /> {loading ? 'Loading...' : 'Generate Report'}
+        <button className="btn-primary" style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={fetchReport} disabled={loading}>
+          {loading ? <Spinner /> : <BarChart3 size={16} />} {loading ? 'Loading...' : 'Generate Report'}
         </button>
       </div>
 

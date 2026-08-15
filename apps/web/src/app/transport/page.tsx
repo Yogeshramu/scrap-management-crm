@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonTableRows, SkeletonMetricCard, SkeletonBox } from '../../components/Skeleton';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface TransportSummary {
   id: number;
@@ -57,7 +58,7 @@ export default function TransportersPage() {
   const fetchTransporterSummaries = async () => {
     setSummariesLoading(true);
     try {
-      const res = await fetch('/api/transporters');
+      const res = await apiFetch('/api/transporters');
       const data = await res.json();
       setSummaries(data);
       if (data.length > 0 && !selectedCompanyId) setSelectedCompanyId(data[0].id.toString());
@@ -67,7 +68,7 @@ export default function TransportersPage() {
   const fetchTrips = async (id: number) => {
     setTripsLoading(true);
     try {
-      const res = await fetch(`/api/transporters/${id}/trips`);
+      const res = await apiFetch(`/api/transporters/${id}/trips`);
       setTrips(await res.json());
       setSelectedTrips([]);
     } catch (err) { console.error(err); } finally { setTripsLoading(false); }
@@ -76,7 +77,7 @@ export default function TransportersPage() {
   const handleAddTransporter = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/transporters', {
+      const res = await apiFetch('/api/transporters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newTransName, phone: newTransPhone }),
@@ -98,7 +99,7 @@ export default function TransportersPage() {
     e.preventDefault();
     if (!editingTransporter) return;
     try {
-      const res = await fetch(`/api/transporters/${editingTransporter.id}`, {
+      const res = await apiFetch(`/api/transporters/${editingTransporter.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editTransName, phone: editTransPhone }),
@@ -125,7 +126,7 @@ export default function TransportersPage() {
     if (selectedTrips.length === 0) { setMessage({ type: 'error', text: 'Please select at least one trip to settle.' }); return; }
     const selectedFee = trips.filter(t => selectedTrips.includes(t.id)).reduce((sum, t) => sum + (t.transportTripFee || 0), 0);
     try {
-      const res = await fetch(`/api/transporters/${selectedCompanyId}/payments`, {
+      const res = await apiFetch(`/api/transporters/${selectedCompanyId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentMethod, amountPaid: selectedFee, tripIds: selectedTrips }),

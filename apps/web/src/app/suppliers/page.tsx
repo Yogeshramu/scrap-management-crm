@@ -5,6 +5,7 @@ import { Plus, Building2, Save, X, Pencil, Phone, AlertTriangle } from 'lucide-r
 import Checklist from '@/components/Checklist';
 import { SkeletonMetricCard, SkeletonTableRows } from '@/components/Skeleton';
 import FileUpload from '@/components/FileUpload';
+import { apiFetch } from '../../lib/apiFetch';
 
 const DEFAULT_CHECKLIST = [
   { label: 'IC Copy received', checked: false },
@@ -37,7 +38,7 @@ export default function SuppliersPage() {
   useEffect(() => { fetchSuppliers(); }, []);
 
   const fetchSuppliers = async () => {
-    const res = await fetch('/api/suppliers');
+    const res = await apiFetch('/api/suppliers');
     const data = await res.json();
     setSuppliers(Array.isArray(data) ? data : []);
     setLoading(false);

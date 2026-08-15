@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, ShieldCheck, Save, X, Pencil, Trash2, KeyRound, UserCircle } from 'lucide-react';
 import CustomSelect from '../../components/CustomSelect';
 import { SkeletonTableRows } from '../../components/Skeleton';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface User {
   id: number;
@@ -56,7 +57,7 @@ export default function UsersPage() {
   useEffect(() => { fetchUsers(); }, []);
 
   const fetchUsers = async () => {
-    const res = await fetch('/api/users');
+    const res = await apiFetch('/api/users');
     if (res.ok) {
       const data = await res.json();
       setUsers(Array.isArray(data) ? data : []);
@@ -94,7 +95,7 @@ export default function UsersPage() {
   const handleDelete = async () => {
     if (!confirmDelete) return;
     try {
-      const res = await fetch(`/api/users/${confirmDelete.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/users/${confirmDelete.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete user');
       setMessage({ type: 'success', text: `User ${confirmDelete.username} deleted.` });
       setConfirmDelete(null);
