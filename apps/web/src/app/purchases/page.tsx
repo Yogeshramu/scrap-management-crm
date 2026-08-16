@@ -35,7 +35,7 @@ import CustomSelect from '../../components/CustomSelect';
 import Checklist from '../../components/Checklist';
 import FileUpload from '../../components/FileUpload';
 import { printPurchaseInvoice, type PrintPurchaseData } from '../../components/PrintInvoice';
-import { apiFetch } from '../../lib/apiFetch';
+import { apiFetch, safeJson } from '../../lib/apiFetch';
 
 interface Supplier {
   id: number;
@@ -233,6 +233,7 @@ export default function PurchasesPage() {
   const [customDeductionAmt, setCustomDeductionAmt] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [previewPurchaseId, setPreviewPurchaseId] = useState<string>(`PUR-${new Date().getFullYear()}-001`);
 
   // ── Edit purchase state ────────────────────────────────────────────────────
@@ -259,7 +260,10 @@ export default function PurchasesPage() {
   };
 
   const refreshNextId = () =>
-    fetch('/api/purchases/next-id').then(r => r.json()).then(d => setPreviewPurchaseId(d.id)).catch(() => {});
+    apiFetch('/api/purchases/next-id')
+      .then(r => safeJson(r))
+      .then(d => { if (d?.id) setPreviewPurchaseId(d.id); })
+      .catch(() => {});
 
   const handleSupplierChange = (idStr: string) => {
     setSupplierId(idStr);
@@ -274,7 +278,7 @@ export default function PurchasesPage() {
     if (!newSupName) return;
     try {
       const res  = await apiFetch('/api/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSupName, contact: newSupContact, iceNumber: newSupIce || null, outstandingAdvance: parseFloat(newSupAdvance) || 0 }) });
-      const data = await res.json();
+      const data = await safeJson(res) ?? {};
       if (!res.ok) throw new Error(data.error || 'Failed to create supplier');
       setMessage({ type: 'success', text: `Created supplier card: ${newSupName}` });
       fetchData();
@@ -316,6 +320,7 @@ export default function PurchasesPage() {
       setMessage({ type: 'error', text: 'Please complete all required fields.' });
       return;
     }
+    setSubmitting(true);
     try {
       const isHired = logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY';
       const sharedBase: any = {
@@ -374,8 +379,8 @@ export default function PurchasesPage() {
           vehicles,
         };
         const res = await apiFetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const saved = await res.json();
-        if (!res.ok) throw new Error(saved.error);
+        const saved = await safeJson(res) ?? {};
+        if (!res.ok) throw new Error(saved.error || 'Failed to record purchase');
         setMessage({ type: 'success', text: `${vehicles.length} vehicle${vehicles.length > 1 ? 's' : ''} recorded under ${saved.id}` });
         savedInvoices.push({
           id: saved.id, date: saved.date ?? new Date().toISOString(),
@@ -407,7 +412,7 @@ export default function PurchasesPage() {
           Object.assign(body, { lotName, scrapDescription, grossTonnageEstimate: parseFloat(grossTonnageEstimate) || 0, scrapPhoto: [photoFront, photoSide, photoDetail].filter(Boolean).join(','), lineItems });
         }
         const res  = await apiFetch('/api/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const saved = await res.json();
+        const saved = await safeJson(res) ?? {};
         if (!res.ok) throw new Error(saved.error || 'Failed to record purchase');
         setMessage({ type: 'success', text: `Purchase recorded: ${saved.id}` });
         savedInvoices.push({
@@ -442,6 +447,7 @@ export default function PurchasesPage() {
       await fetchData();
       if (print) savedInvoices.forEach(inv => printPurchaseInvoice(inv));
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
+    finally { setSubmitting(false); }
   };
 
   const openEditSupplier = (s: Supplier) => { setEditingSupplier(s); setEditSupName(s.name); setEditSupContact(s.contact || ''); setEditSupIce((s as any).iceNumber || ''); setEditSupAdvance(s.outstandingAdvance.toString()); };
@@ -451,7 +457,7 @@ export default function PurchasesPage() {
     if (!editingSupplier) return;
     try {
       const res  = await apiFetch(`/api/suppliers/${editingSupplier.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editSupName, contact: editSupContact, iceNumber: editSupIce || null, outstandingAdvance: parseFloat(editSupAdvance) || 0 }) });
-      const data = await res.json();
+      const data = await safeJson(res) ?? {};
       if (!res.ok) throw new Error(data.error || 'Failed to update supplier');
       setMessage({ type: 'success', text: `Supplier ${editSupName} updated.` });
       setEditingSupplier(null);
@@ -574,6 +580,7 @@ export default function PurchasesPage() {
   const handleEditSubmit = async (e: React.FormEvent, shouldPrint = false) => {
     e.preventDefault();
     if (!editingPurchase) return;
+    setSubmitting(true);
     try {
       const isHired = logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY';
       const resolvedDriverName = driverNames.length > 0 ? driverNames.join(', ') + (crewCount ? ` (+${crewCount} crew)` : '') : driverName;
@@ -621,7 +628,7 @@ export default function PurchasesPage() {
         body.transportTripFee   = parseFloat(transportTripFee) || 0;
       }
       const res  = await apiFetch(`/api/purchases/${editingPurchase.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await res.json();
+      const data = await safeJson(res) ?? {};
       if (!res.ok) throw new Error(data.error || 'Failed to update purchase');
       setMessage({ type: 'success', text: `Purchase ${editingPurchase.id} updated.` });
       if (shouldPrint) {
@@ -660,6 +667,7 @@ export default function PurchasesPage() {
       cancelEdit();
       fetchData();
     } catch (err: any) { setMessage({ type: 'error', text: err.message }); }
+    finally { setSubmitting(false); }
   };
 
   // ── Load dummy data for testing ──────────────────────────────────────────
@@ -1345,14 +1353,16 @@ export default function PurchasesPage() {
                 {calculatedAdvanceDeduction > 0 && <span style={{ fontSize: '0.85rem', color: '#f59e0b', marginLeft: '10px' }}>(Deducted B${calculatedAdvanceDeduction.toFixed(2)})</span>}
               </p>
             </div>
-            <button type="button" className="btn-outline" onClick={() => editingPurchase ? cancelEdit() : (() => { setPickupLocation(''); setNotes(''); setSupplierId(''); setSelectedSupplier(null); setAgreedPrice(''); setAdvancePaid('0'); setVehicleBrand(''); setVehicleModel(''); setRegistrationNo(''); setOtherInfo(''); setPhotoFront(''); setPhotoSide(''); setPhotoDetail(''); })()}>
+            <button type="button" className="btn-outline" disabled={submitting} onClick={() => editingPurchase ? cancelEdit() : (() => { setPickupLocation(''); setNotes(''); setSupplierId(''); setSelectedSupplier(null); setAgreedPrice(''); setAdvancePaid('0'); setVehicleBrand(''); setVehicleModel(''); setRegistrationNo(''); setOtherInfo(''); setPhotoFront(''); setPhotoSide(''); setPhotoDetail(''); })()}>
               <X size={16} /> {editingPurchase ? 'Cancel Edit' : 'Cancel'}
             </button>
-            <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => editingPurchase ? handleEditSubmit(e as any, true) : handleFormSubmit(e as any, true)}>
-              <Printer size={16} /> {editingPurchase ? 'Update & Print' : 'Save & Print'}
+            <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} disabled={submitting} onClick={(e) => editingPurchase ? handleEditSubmit(e as any, true) : handleFormSubmit(e as any, true)}>
+              {submitting ? <Clock size={16} style={{ animation: 'loading-spin 0.9s linear infinite' }} /> : <Printer size={16} />}
+              {submitting ? 'Saving...' : (editingPurchase ? 'Update & Print' : 'Save & Print')}
             </button>
-            <button type="submit" className="btn-primary">
-              <Save size={18} /> {editingPurchase ? 'Update Record' : 'Save Record'}
+            <button type="submit" className="btn-primary" disabled={submitting} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {submitting ? <Clock size={18} style={{ animation: 'loading-spin 0.9s linear infinite' }} /> : <Save size={18} />}
+              {submitting ? 'Saving...' : (editingPurchase ? 'Update Record' : 'Save Record')}
             </button>
           </div>
         </form>

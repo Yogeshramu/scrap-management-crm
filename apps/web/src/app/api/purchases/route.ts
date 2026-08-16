@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { withMiddleware } from '@/lib/apiMiddleware';
 import { withRetry } from '@/lib/retry';
 
-export const GET = withMiddleware(async () => {
+export const GET = withMiddleware(async (_req: NextRequest) => {
   const purchases = await withRetry(() => prisma.purchase.findMany({
     take: 50,
     select: {
@@ -25,7 +25,7 @@ export const GET = withMiddleware(async () => {
   return NextResponse.json(purchases, {
     headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
   });
-});
+}, { minRole: 'STAFF' });
 
 export const POST = withMiddleware(async (req: NextRequest) => {
   try {
@@ -41,6 +41,47 @@ export const POST = withMiddleware(async (req: NextRequest) => {
       lineItems,
     } = body;
 
+    
+    // ── Input validation ────────────────────────────────────────────────────
+    const VALID_TYPES = ['VEHICLE', 'LOOSE_SCRAP', 'MIXED_SCRAP'];
+    const VALID_LOGISTICS = ['OUR_TOW_TRUCK', 'OUR_LORRY', 'HIRED_TOW_TRUCK', 'HIRED_LORRY', 'SUPPLIER_DELIVERED'];
+    const VALID_PAYMENT_STATUS = ['PAID', 'PARTIAL', 'UNPAID'];
+    const VALID_PAYMENT_METHOD = ['CASH', 'BANK_TRANSFER'];
+
+    if (!VALID_TYPES.includes(type)) {
+      return NextResponse.json({ error: `Invalid type. Must be one of: ${VALID_TYPES.join(', ')}` }, { status: 400 });
+    }
+    if (!supplierId) {
+      return NextResponse.json({ error: 'supplierId is required' }, { status: 400 });
+    }
+    if (!pickupLocation || !String(pickupLocation).trim()) {
+      return NextResponse.json({ error: 'pickupLocation is required' }, { status: 400 });
+    }
+    if (!VALID_LOGISTICS.includes(logisticsMethod)) {
+      return NextResponse.json({ error: `Invalid logisticsMethod. Must be one of: ${VALID_LOGISTICS.join(', ')}` }, { status: 400 });
+    }
+    if (!VALID_PAYMENT_STATUS.includes(paymentStatus)) {
+      return NextResponse.json({ error: `Invalid paymentStatus. Must be one of: ${VALID_PAYMENT_STATUS.join(', ')}` }, { status: 400 });
+    }
+    if (!VALID_PAYMENT_METHOD.includes(paymentMethod)) {
+      return NextResponse.json({ error: `Invalid paymentMethod. Must be one of: ${VALID_PAYMENT_METHOD.join(', ')}` }, { status: 400 });
+    }
+    const parsedPrice = parseFloat(agreedPrice);
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      return NextResponse.json({ error: 'agreedPrice must be a non-negative number' }, { status: 400 });
+    }
+    if (lineItems !== undefined && !Array.isArray(lineItems)) {
+      return NextResponse.json({ error: 'lineItems must be an array' }, { status: 400 });
+    }
+    if (Array.isArray(lineItems)) {
+      for (const li of lineItems) {
+        if (!li.material || isNaN(parseFloat(li.qty)) || isNaN(parseFloat(li.rate))) {
+          return NextResponse.json({ error: 'Each lineItem must have material, qty, and rate' }, { status: 400 });
+        }
+      }
+    }
+    // ── End validation ──────────────────────────────────────────────────────
+
     const supplier = await prisma.supplier.findUnique({
       where: { id: parseInt(supplierId) },
       select: { id: true, name: true, outstandingAdvance: true },
@@ -53,15 +94,15 @@ export const POST = withMiddleware(async (req: NextRequest) => {
     const advanceDeduction = supplier.outstandingAdvance > 0 ? Math.min(supplier.outstandingAdvance, price) : 0;
     const isHired = logisticsMethod === 'HIRED_TOW_TRUCK' || logisticsMethod === 'HIRED_LORRY';
 
-    const result = await withRetry(() => prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-      const last = await tx.purchase.findFirst({
-        where: { id: { startsWith: `PUR-${currentYear}-` } },
-        orderBy: { id: 'desc' },
-        select: { id: true },
-      });
-      const purchaseId = `PUR-${currentYear}-${((last ? parseInt(last.id.split('-')[2]) : 0) + 1).toString().padStart(3, '0')}`;
+    const currentYear = new Date().getFullYear();
+    const lastPurchase = await prisma.purchase.findFirst({
+      where: { id: { startsWith: `PUR-${currentYear}-` } },
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    });
+    const purchaseId = `PUR-${currentYear}-${((lastPurchase ? parseInt(lastPurchase.id.split('-')[2]) : 0) + 1).toString().padStart(3, '0')}`;
 
+    const result = await withRetry(() => prisma.$transaction(async (tx) => {
       const record = await tx.purchase.create({
         data: {
           id: purchaseId, type, supplierId: supplier.id, pickupLocation,

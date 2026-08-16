@@ -5,8 +5,8 @@ import { dataCache } from './cache';
 import { apiFetch } from './apiFetch';
 
 interface Options {
-  ttl?: number;          // ms, default 60s
-  skip?: boolean;        // don't fetch at all
+  ttl?: number;
+  skip?: boolean;
 }
 
 export function useCachedFetch<T>(url: string, options: Options = {}) {
@@ -27,8 +27,17 @@ export function useCachedFetch<T>(url: string, options: Options = {}) {
     setLoading(true);
     setError(null);
     try {
+      // apiFetch handles 401 → refresh → retry internally
       const res = await apiFetch(url, { signal: ctrl.signal });
-      if (!res.ok) throw new Error(`${res.status}`);
+      if (!res.ok) {
+        // Try to extract a meaningful error message from the JSON body
+        let msg = `Request failed (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body?.error) msg = body.error;
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
       const json = await res.json();
       dataCache.set(url, json);
       setData(json);

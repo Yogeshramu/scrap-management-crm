@@ -14,10 +14,19 @@ function getIP(req: NextRequest): string {
 
 interface MiddlewareOptions {
   minRole?: Role;
-  idempotent?: boolean; // apply idempotency check (POST/PUT mutations)
+  idempotent?: boolean;
 }
 
 type Handler = (req: NextRequest, ctx: { user: Awaited<ReturnType<typeof getUser>> }) => Promise<NextResponse>;
+
+async function runHandler(handler: Handler, req: NextRequest, ctx: { user: Awaited<ReturnType<typeof getUser>> }): Promise<NextResponse> {
+  try {
+    return await handler(req, ctx);
+  } catch (e: any) {
+    console.error(`[API] Unhandled error in ${req.method} ${req.nextUrl.pathname}:`, e?.message ?? e);
+    return NextResponse.json({ error: e?.message ?? 'Internal server error' }, { status: 500 });
+  }
+}
 
 export function withMiddleware(handler: Handler, opts: MiddlewareOptions = {}) {
   return async (req: NextRequest): Promise<NextResponse> => {
@@ -25,7 +34,7 @@ export function withMiddleware(handler: Handler, opts: MiddlewareOptions = {}) {
     const method = req.method;
 
     // 1. Rate limit
-    const rl = checkRateLimit(ip, method);
+    const rl = checkRateLimit(ip, method, req.nextUrl.pathname);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please slow down.' },
@@ -33,12 +42,17 @@ export function withMiddleware(handler: Handler, opts: MiddlewareOptions = {}) {
       );
     }
 
-    // 2. Auth
+    // 2. Auth — get user once, reuse for both role check and handler ctx
     const user = await getUser(req);
     if (opts.minRole) {
-      const deny = await requireRole(req, opts.minRole);
-      if (deny) return deny;
+      if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      const ROLE_RANK: Record<Role, number> = { STAFF: 0, MANAGER: 1, ADMIN: 2 };
+      if (ROLE_RANK[user.role] < ROLE_RANK[opts.minRole]) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
+
+    const ctx = { user };
 
     // 3. Idempotency (mutations only)
     if (opts.idempotent && (method === 'POST' || method === 'PUT')) {
@@ -46,16 +60,21 @@ export function withMiddleware(handler: Handler, opts: MiddlewareOptions = {}) {
       if (key) {
         const cached = getIdempotencyResult(key);
         if (cached) {
-          return NextResponse.json(cached.body, { status: cached.status, headers: { 'X-Idempotent-Replayed': 'true' } });
+          return NextResponse.json(cached.body, {
+            status: cached.status,
+            headers: { 'X-Idempotent-Replayed': 'true' },
+          });
         }
-        // Run handler and cache result
-        const res = await handler(req, { user });
-        const body = await res.clone().json().catch(() => null);
-        if (res.status < 500) setIdempotencyResult(key, res.status, body);
+        const res = await runHandler(handler, req, ctx);
+        // Only cache if body is valid JSON and not a server error
+        if (res.status < 500) {
+          const body = await res.clone().json().catch(() => null);
+          if (body !== null) setIdempotencyResult(key, res.status, body);
+        }
         return res;
       }
     }
 
-    return handler(req, { user });
+    return runHandler(handler, req, ctx);
   };
 }

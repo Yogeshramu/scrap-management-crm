@@ -39,6 +39,13 @@ export async function proxy(request: NextRequest) {
 
   // Protected paths — require valid access token
   if (!token) {
+    // API routes must return JSON 401, not redirect
+    if (pathname.startsWith('/api/')) {
+      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
@@ -49,6 +56,12 @@ export async function proxy(request: NextRequest) {
     // STAFF cannot access restricted routes
     const restrictedForStaff = ['/salary', '/reports', '/expenses', '/employees', '/api/salary', '/api/reports', '/api/expenses', '/api/employees'];
     if (role === 'STAFF' && restrictedForStaff.some(r => pathname.startsWith(r))) {
+      if (pathname.startsWith('/api/')) {
+        return new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
@@ -57,6 +70,15 @@ export async function proxy(request: NextRequest) {
     response.headers.set('x-user-id', payload.id as string);
     return response;
   } catch {
+    // Token invalid/expired
+    if (pathname.startsWith('/api/')) {
+      const res = new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+      res.cookies.delete('access_token');
+      return res;
+    }
     const response = NextResponse.redirect(new URL('/login', request.url));
     response.cookies.delete('access_token');
     return response;

@@ -1,17 +1,27 @@
-export async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1500): Promise<T> {
+// Transient Prisma error codes that are safe to retry
+const RETRYABLE_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017']);
+
+function isRetryable(err: any): boolean {
+  if (RETRYABLE_CODES.has(err?.code)) return true;
+  if (RETRYABLE_CODES.has(err?.errorCode)) return true;
+  const msg: string = err?.message ?? '';
+  return (
+    msg.includes("Can't reach database") ||
+    msg.includes('Connection refused') ||
+    msg.includes('connect_timeout') ||
+    msg.includes('connection pool timeout') ||
+    msg.includes('ECONNRESET')
+  );
+}
+
+export async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 300): Promise<T> {
   let lastError: any;
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (err: any) {
       lastError = err;
-      const isConnErr =
-        err?.message?.includes("Can't reach database") ||
-        err?.message?.includes('Connection refused') ||
-        err?.message?.includes('connect_timeout') ||
-        err?.errorCode === 'P1001' ||
-        err?.errorCode === 'P1002';
-      if (!isConnErr || i === retries - 1) throw err;
+      if (!isRetryable(err) || i === retries - 1) throw err;
       await new Promise(r => setTimeout(r, delayMs * (i + 1)));
     }
   }
