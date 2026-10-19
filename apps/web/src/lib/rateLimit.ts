@@ -1,3 +1,4 @@
+import 'server-only';
 import { redis } from './redis';
 
 const isDev = process.env.NODE_ENV !== 'production';

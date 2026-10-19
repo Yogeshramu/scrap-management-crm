@@ -9,13 +9,13 @@ export const serverCache = {
     return val ? JSON.parse(val) : null;
   },
   async set(key: string, data: any, ttl = TTL_S) {
-    await redis.set(`cache:${key}`, JSON.stringify(data), 'EX', ttl);
+    await redis.set(`cache:${key}`, JSON.stringify(data), { EX: ttl });
   },
   async invalidate(...keys: string[]) {
-    if (keys.length) await redis.del(...keys.map(k => `cache:${k}`));
+    if (keys.length) await redis.del(keys.map(k => `cache:${k}`));
   },
   async invalidatePrefix(prefix: string) {
     const keys = await redis.keys(`cache:${prefix}*`);
-    if (keys.length) await redis.del(...keys);
+    if (keys.length) await redis.del(keys);
   },
 };
