@@ -34,7 +34,7 @@ export function withMiddleware(handler: Handler, opts: MiddlewareOptions = {}) {
     const method = req.method;
 
     // 1. Rate limit
-    const rl = checkRateLimit(ip, method, req.nextUrl.pathname);
+    const rl = await checkRateLimit(ip, method, req.nextUrl.pathname);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please slow down.' },
@@ -58,7 +58,7 @@ export function withMiddleware(handler: Handler, opts: MiddlewareOptions = {}) {
     if (opts.idempotent && (method === 'POST' || method === 'PUT')) {
       const key = req.headers.get('idempotency-key');
       if (key) {
-        const cached = getIdempotencyResult(key);
+        const cached = await getIdempotencyResult(key);
         if (cached) {
           return NextResponse.json(cached.body, {
             status: cached.status,
@@ -69,7 +69,7 @@ export function withMiddleware(handler: Handler, opts: MiddlewareOptions = {}) {
         // Only cache if body is valid JSON and not a server error
         if (res.status < 500) {
           const body = await res.clone().json().catch(() => null);
-          if (body !== null) setIdempotencyResult(key, res.status, body);
+          if (body !== null) await setIdempotencyResult(key, res.status, body);
         }
         return res;
       }

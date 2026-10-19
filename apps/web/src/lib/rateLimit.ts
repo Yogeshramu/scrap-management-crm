@@ -1,14 +1,6 @@
-// Sliding-window rate limiter — server-side only
-// Limits: 60 req/min for GETs, 20 req/min for mutations per IP
-// NOTE: In development, limits are relaxed to avoid blocking test runs
+import { redis } from './redis';
+
 const isDev = process.env.NODE_ENV !== 'production';
-
-interface Window {
-  count: number;
-  resetAt: number;
-}
-
-const store = new Map<string, Window>();
 
 const LIMITS: Record<string, { max: number; windowMs: number }> = isDev
   ? {
@@ -24,31 +16,21 @@ const LIMITS: Record<string, { max: number; windowMs: number }> = isDev
       DELETE: { max: 10,  windowMs: 60_000 },
     };
 
-export function checkRateLimit(ip: string, method: string, path = ''): { allowed: boolean; retryAfter?: number } {
+export async function checkRateLimit(
+  ip: string,
+  method: string,
+  path = ''
+): Promise<{ allowed: boolean; retryAfter?: number }> {
   const cfg = LIMITS[method] ?? LIMITS.GET;
-  const key = `${ip}:${method}:${path}`;
-  const now = Date.now();
+  const key = `rl:${ip}:${method}:${path}`;
+  const windowS = Math.ceil(cfg.windowMs / 1000);
 
-  let win = store.get(key);
-  if (!win || now > win.resetAt) {
-    win = { count: 1, resetAt: now + cfg.windowMs };
-    store.set(key, win);
-    return { allowed: true };
-  }
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, windowS);
 
-  win.count++;
-  if (win.count > cfg.max) {
-    return { allowed: false, retryAfter: Math.ceil((win.resetAt - now) / 1000) };
+  if (count > cfg.max) {
+    const ttl = await redis.ttl(key);
+    return { allowed: false, retryAfter: ttl > 0 ? ttl : windowS };
   }
   return { allowed: true };
-}
-
-// Cleanup stale entries every 5 minutes
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    const now = Date.now();
-    for (const [k, v] of store) {
-      if (now > v.resetAt) store.delete(k);
-    }
-  }, 300_000);
 }
