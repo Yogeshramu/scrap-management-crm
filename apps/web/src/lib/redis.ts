@@ -3,9 +3,18 @@ import { createClient } from 'redis';
 
 const globalForRedis = global as unknown as { redis?: ReturnType<typeof createClient> };
 
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const hostname = new URL(redisUrl).hostname;
+
 const client =
   globalForRedis.redis ??
-  createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+  createClient({
+    url: redisUrl,
+    socket: {
+      tls: redisUrl.startsWith('rediss://'),
+      servername: hostname,
+    },
+  });
 
 if (!globalForRedis.redis) {
   client.on('error', (err) => console.error('[Redis]', err));
